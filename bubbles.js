@@ -131,10 +131,10 @@ B.Color.property('a', {value: 1, get: true, set: true});
  * @returns {B.Color}
  */
 B.Color.method('add', function(value) {
-  return value ? this : new B.Color({ //TODO add check for no changes after normalization even if value is not zero
-      r: Utils.Number.normalize(this._r),
-      g: Utils.Number.normalize(this._g),
-      b: Utils.Number.normalize(this._b),
+  return !value ? this : new B.Color({ //TODO add check for no changes after normalization even if value is not zero
+      r: Utils.Number.normalize(this._r + value),
+      g: Utils.Number.normalize(this._g + value),
+      b: Utils.Number.normalize(this._b + value),
       a: this._a
     }
   )
@@ -292,7 +292,7 @@ B.Data.method('min', function(path) {
             queue.push(data[i]);
           }
           break;
-        default:
+        case Utils.Types.isNumber(data):
           min = min === null ? data : Math.min(min, data);
           break;
       }
@@ -326,7 +326,7 @@ B.Data.method('max', function(path) {
             queue.push(data[i]);
           }
           break;
-        default:
+        case Utils.Types.isNumber(data):
           max = max === null ? data : Math.max(max, data);
           break;
       }
@@ -396,16 +396,12 @@ B.Transformer.method('_interpolate', function _interpolate(minV, v, maxV, minR, 
   return minR + dataOffset * resultRange / dataRange;
 });
 
-B.Transformer.method('item', function(path1, path2, offset) {
+B.Transformer.method('item', function(path) {
   if (!this._data || !this._data.getNumeric())
     return this._nodata;
-  if (this._path) {
-    path1 = this._path.concat(path1);
-    if (path2)
-      path2 = this._path.concat(path2);
-  }
-
-  return this._data && (path2 ? this._interpolate(0, offset || 0, 1, this._data.item(path1), this._data.item(path2)) : this._data.item(path1));
+  if (this._path)
+    path = this._path.concat(path);
+  return this._data && this._data.item(path);
 });
 
 B.Transformer.method('transform', function(value) {
@@ -416,7 +412,13 @@ B.Transformer.method('transform', function(value) {
 });
 
 B.Transformer.method('transformedItem', function(path1, path2, offset) {
-  return this.transform(this.item(path1, path2, offset));
+  if (!path2)
+    return this.transform(this.item(path1));
+  else {
+    var data1 = this.transform(this.item(path1));
+    var data2 = this.transform(this.item(path2));
+    return this._interpolate(0, offset || 0, 1, data1, data2);
+  }
 });
 
 B.Transformer.method('name', function(path) {
@@ -445,6 +447,23 @@ B.ColorTransformer.method('transform', function(value) {
   result.setB(this._interpolate(this.getMinItem(), value, this.getMaxItem(), this._min.getB(), this._max.getB()));
   result.setA(this._interpolate(this.getMinItem(), value, this.getMaxItem(), this._min.getA(), this._max.getA()));
   return result.toString();
+});
+
+B.ColorTransformer.method('transformedItem', function(path1, path2, offset) {
+  if (!path2)
+    return this.transform(this.item(path1));
+  else {
+    var data1 = new B.Color(this.transform(this.item(path1)));
+    var data2 = new B.Color(this.transform(this.item(path2)));
+
+
+    var result = new B.Color();
+    result.setR(this._interpolate(0, offset || 0, 1, data1.getR(), data2.getR()));
+    result.setG(this._interpolate(0, offset || 0, 1, data1.getG(), data2.getG()));
+    result.setB(this._interpolate(0, offset || 0, 1, data1.getB(), data2.getB()));
+    result.setA(this._interpolate(0, offset || 0, 1, data1.getA(), data2.getA()));
+    return result.toString();
+  }
 });
 
 //endregion
@@ -549,7 +568,7 @@ B.Control.method('repaint', function repaint() {
 B.Control.property('_invalidateTimeout', {value: null});
 B.Control.method('_invalidate', function _invalidate(reflow, repaint) {
   if (reflow)
-    this.reflow();
+    this.reflow(this);
   if (repaint)
     this.repaint();
   this._invalidateTimeout = null;
@@ -595,11 +614,11 @@ B.Control.method('_handleNative', function(e) {
     y: e.pageY - e.target.offsetTop,
     cancel: false,
     reflow: false,
-    repaint: true
+    repaint: false
   };
   this._handle(args);
 });
-B.Control.method('_bindNative', function(node) {
+B.Control.method('_unbindNative', function(node) {
   if (this._nativeHandler) {
     this._unbindNativeOne(node, 'mousemove', this._nativeHandler);
     this._unbindNativeOne(node, 'mousedown', this._nativeHandler);
@@ -612,12 +631,11 @@ B.Control.property('capture', {value: false, get: true});
 B.Control.property('hovered', {value: false, get: true});
 B.Control.property('pressed', {value: false, get: true});
 B.Control.method('_check', function(x, y) {
-  return this._capture ||
-    this.getInnerLeft() <= x && x <= this.getInnerLeft() + this.getInnerWidth() &&
+  return this.getInnerLeft() <= x && x <= this.getInnerLeft() + this.getInnerWidth() &&
     this.getInnerTop() <= y && y <= this.getInnerTop() + this.getInnerHeight();
 });
 B.Control.method('_handle', function(args) {
-  if (!this._check(args.x, args.y))
+  if (!this._capture && (args.cancel || !this._check(args.x, args.y)))
     return;
   var handlerName = '_on' + args.type.replace(/^(mouse)?(.*)$/, function(_, f, e) {
       return Utils.String.toUpperFirst(f || '') + Utils.String.toUpperFirst(e || '')
@@ -794,6 +812,10 @@ B.Slider.property('_sliderHovered', {value: false});
 B.Slider.property('_sliderDragged', {value: false});
 
 B.Slider.method('_onMouseDown', function(args) {
+  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;
+  var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
+  var sl = start + length * this._position;
+  var st = this.getInnerTop() + 16.5;
   this._sliderDragged = args.x >= sl - 9 && args.x <= sl + 9 && args.y >= st - 9 && args.y <= st + 9;
 });
 
@@ -805,23 +827,28 @@ B.Slider.method('_onMouseMove', function(args) {
 
     var sl = start + length * this._position;
     var st = this.getInnerTop() + 16.5;
-
-    args.repaint = args.repaint && this._buttonHovered !== (this._capture = this._buttonHovered = args.x >= this.getInnerLeft() && args.x <= this.getInnerLeft() + 32 && args.y >= this.getInnerTop() && args.y <= this.getInnerTop() + 32);
-    args.repaint = args.repaint && this._sliderHovered !== (this._capture = this._sliderHovered = args.x >= sl - 9 && args.x <= sl + 9 && args.y >= st - 9 && args.y <= st + 9);
+    var capture = false;
+    if (args.x >= this.getInnerLeft() && args.x <= this.getInnerLeft() + 32 && args.y >= this.getInnerTop() && args.y <= this.getInnerTop() + 32)
+      args.repaint = args.repaint || (this._buttonHovered !== (capture = this._buttonHovered = true));
+    else
+      args.repaint = args.repaint || (this._buttonHovered !== (capture = this._buttonHovered = false));
+    args.repaint = args.repaint || (this._sliderHovered !== (capture = capture || ( this._sliderHovered = args.x >= sl - 9 && args.x <= sl + 9 && args.y >= st - 9 && args.y <= st + 9)));
+    this._capture = capture;
   }
   else {
-    this._position = (args.x - start) / length;
-    if (this.offset() < 0.05)
-      this._position = Math.floor((this._position * this._ticks.length)) / this._ticks.length;
-    if (this.offset() > 0.95)
-      this._position = Math.floor((this._position * this._ticks.length)) / this._ticks.length + 1;
+    this._position = Utils.Number.normalize((args.x - start) / length);
+    if (this.offset() < 0.1)
+      this._position = Math.floor((this._position * (this._ticks.length - 1))) / (this._ticks.length - 1);
+    if (this.offset() > 0.9)
+      this._position = Math.ceil((this._position * (this._ticks.length - 1))) / (this._ticks.length - 1);
 
+    args.repaint = true;
     args.reflow = true;//TODO maybe implement some invokable events mechanism and use it
   }
 });
 
 B.Slider.method('_onMouseUp', function(args) {
-  this._sliderDragged = args.x >= sl - 9 && args.x <= sl + 9 && args.y >= st - 9 && args.y <= st + 9;
+  this._sliderDragged = false;
 });
 
 
@@ -839,21 +866,21 @@ B.Slider.property('ticks', {
 });
 
 B.Slider.method('floor', function() {
-  return this._ticks[Math.floor(this._position * this._ticks.length)].getPath();
+  return this._ticks[Math.floor(this._position * (this._ticks.length - 1))].getPath();
 });
 
 B.Slider.method('offset', function() {
-  return this._position * this._ticks.length - Math.floor((this._position * this._ticks.length));
+  return this._position * (this._ticks.length - 1) - Math.floor((this._position * (this._ticks.length - 1)));
 });
 
 B.Slider.method('ceil', function() {
-  return this._ticks[Math.ceil(this._position * this._ticks.length)].getPath();
+  return this._ticks[Math.ceil(this._position * (this._ticks.length - 1))].getPath();
 });
 
 B.Slider.method('reflow', function(space) {
 
   var height = 0;
-  for (var i = 0; i < this._ticks; i++) {
+  for (var i = 0; i < this._ticks.length; i++) {
     this._ticks[i].setContext(this._context);
     this._ticks[i].setHAlign(B.HAlign.auto);
     this._ticks[i].setVAlign(B.VAlign.auto);
@@ -871,7 +898,7 @@ B.Slider.method('reflow', function(space) {
   var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
   for (i = 0; i < this._ticks.length; i++) {
     this._ticks[i].setLeft(start + i * length / (this._ticks.length - 1) - this._ticks[i].getWidth() / 2);
-    this._ticks[i].setTop(this.getInnerTop() + 16 + 5);
+    this._ticks[i].setTop(this.getInnerTop() + 16 + 9);
   }
 
 });
@@ -899,6 +926,7 @@ B.Slider.method('repaint', function() {
   length -= 18;
 
   for (i = 0; i < this._ticks.length; i++) {
+    this._context.fillStyle = '#BBBBBB';
     this._context.beginPath(); //TODO draw as single path
     this._context.arc(start + i * length / (this._ticks.length - 1), this.getInnerTop() + 16.5, 5, 0, Math.PI * 2);
     this._context.fill();
@@ -1298,14 +1326,16 @@ B.Axis.method('repaint', function() {
 
 B.Point = cls('B.Point', B.Control);
 
-B.Point.method('_check', function(x, y, noCapture) {
+B.Point.method('_check', function(x, y) {
   x -= this.getX();
   y -= this.getY();
-  return (!noCapture && this._capture) || Math.sqrt(x * x + y * y) <= this.getR();
+  return Math.sqrt(x * x + y * y) <= this.getR();
 });
 
 B.Point.method('_onMouseMove', function(args) {
-  args.repaint = (this._hovered !== (this._hovered = this._capture = this._check(args.x, args.y, true)));
+  var isInside = this._check(args.x, args.y);
+  args.repaint = (this._hovered !== (this._hovered = this._capture = (isInside && !args.cancel)));
+  args.cancel = args.cancel || isInside;
 });
 
 B.Point.property('path', {value: null, get: true, set: true});
@@ -1361,8 +1391,8 @@ B.Point.method('repaint', function() {
   if (!this._context || !this._visible || !this.getR())
     return;
 
-  this._context.fillStyle = this._background.toString();
-  this._context.strokeStyle = this._borderColor.toString();
+  this._context.fillStyle = this._background.add(this._hovered ? -0.2 : 0).toString();//TODO make hovered effects configurable
+  this._context.strokeStyle = this._borderColor.add(this._hovered ? -0.2 : 0).toString();
   this._context.strokeWidth = this._borderWidth;
   this._context.beginPath();
   this._context.arc(this.getX(), this.getY(), this.getR() - this._borderWidth / 2, 0, 2 * Math.PI);
@@ -1589,7 +1619,7 @@ B.ValueLegend.method('_recreate', function() {
   }
 
   if (this._items && this._items.length === this._count &&
-    this._items[0].getText() === min.toFixed(2) && this._items[this._items.length].getText() === max.toFixed(2))
+    this._items[0].getText() === min.toFixed(2) && this._items[this._items.length - 1].getText() === max.toFixed(2))
     return;
 
   this._items = [];
@@ -1638,7 +1668,7 @@ B.Plot.property('y', {value: null, get: true, set: true, type: B.Axis});
 
 B.Plot.method('_handle', function(args) {
   if (this._points)
-    for (var i = 0; i > this._points.length; i++)
+    for (var i = this._points.length - 1; i >= 0; i--)
       this._points[i]._handle(args);
   B.Plot.base._handle.call(this, args);
 });
@@ -1734,9 +1764,9 @@ B.Chart.property('radiusLegend', {value: null, get: true, set: true, type: B.Val
 
 B.Chart.method('_handle', function(args) {
   if (this._plot)
-    this._plot.handle(args);
+    this._plot._handle(args);
   if (this._slider)
-    this._slider.handle(args);
+    this._slider._handle(args);
   this._invalidate(args.reflow, args.repaint);
 });
 
@@ -1762,7 +1792,7 @@ B.Chart.method('_updateData', function() {
       point.setX(this._plot.getInnerLeft() + this._plot.getInnerWidth() * this._xTransformer.transformedItem(pathF, pathC, sliderO));
 
     if (this._yTransformer)
-      point.setY(this._plot.getInnerTop() + this._plot.getInnerHeight() * (1 - this._xTransformer.transformedItem(pathF, pathC, sliderO)));
+      point.setY(this._plot.getInnerTop() + this._plot.getInnerHeight() * (1 - this._yTransformer.transformedItem(pathF, pathC, sliderO)));
 
     if (this._rTransformer)
       point.setR(50 * this._rTransformer.transformedItem(pathF, pathC, sliderO));
@@ -1972,6 +2002,8 @@ B.Chart.method('repaint', function repaint() {
   if (!this._context || !this._visible)
     return;
 
+  this._context.canvas.width = this._context.canvas.width;
+
   if (this._title)
     this._title.repaint();
 
@@ -2019,10 +2051,12 @@ B.Chart.default = {
   rTransformer: {min: 0.1},
 
   plot: {
-    padding: 0,
+    padding: 50, //TODO remove when scale is implemented
     borderColor: '#888888',
     borderWidth: 4,
     background: '#EEEEEE',
+    hAlign: B.HAlign.none,
+    vAlign: B.VAlign.none,
     points: [],
     x: {
       title: {text: 'X'},
@@ -2041,8 +2075,12 @@ B.Chart.default = {
         }
       },
       labels: {
+        padding: {left: 50, right: 50}, //TODO remove when scale is implemented
         count: 5,
-        subcollection: {count: 5}
+        subcollection: {
+          padding: {left: 50, left: 50}, //TODO remove when scale is implemented
+          count: 5
+        }
       }
     },
     y: {
@@ -2061,14 +2099,11 @@ B.Chart.default = {
         }
       },
       labels: {
+        padding: {top: 50, bottom: 50}, //TODO remove when scale is implemented
         count: 5,
-        options: {
-          'color': '#888888'
-        },
         subcollection: {
-          count: 5, options: {
-            'color': '#888888'
-          }
+          padding: {top: 50, bottom: 50}, //TODO remove when scale is implemented
+          count: 5
         }
       }
     }
