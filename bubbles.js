@@ -1,229 +1,15 @@
-/**
- * Main chart's namespace.
- * @namespace
- */
-var B = namespace();
-
-//region Basic enumerations
-
-/** Direction enumeration.
- * @enum {string}.
- */
-B.Direction = enumeration({
-  up: 'up',
-  left: 'left',
-  bottom: 'bottom',
-  right: 'right'
-});
-
-/** Horizontal alignment for controls.
- * @enum {string}
- */
-B.HAlign = enumeration({
-  /** Align to left and calculate width by content. */
-  left: 'left',
-  /** Align to center and calculate width by content. */
-  center: 'center',
-  /** Align to right and calculate width by content. */
-  right: 'right',
-  /** Fill container width. */
-  fit: 'fit',
-  /** Calculate width by content but use user-defined position. */
-  auto: 'auto',
-  /** Use user-defined position and size */
-  none: 'none'
-});
-
-/** Vertical alignment for controls.
- * @enum {string}
- */
-B.VAlign = enumeration({
-  /** Align to top and calculate height by content. */
-  top: 'top',
-  /** Align to center and calculate height by content. */
-  center: 'center',
-  /** Align to bottom and calculate height by content. */
-  bottom: 'bottom',
-  /** Fill container height. */
-  fit: 'fit',
-  /** Calculate height by content but use user-defined position. */
-  auto: 'auto',
-  /** Use user-defined position and size. */
-  none: 'none'
-});
-
-//endregion
-
-//region B.Font
-
-B.FONT_SIZE = 12; //TODO add custom fonts for each component
-
-//endregion
-
-//region B.Color
-
-/** Color class.
- * @param {string|object} options Either any of HTML/CSS notation of color or object with properties values.
- */
-B.Color = cls('B.Color', MObject, function Color(options) {
-  function rgb(r, g, b) {
-    return {r: r / 255, g: g / 255, b: b / 255}
-  }
-
-  function rgba(r, g, b, a) {
-    return {r: r / 255, g: g / 255, b: b / 255, a: a}
-  }
-
-  function tryParse(value) {
-    var result = null;
-    if (!Utils.Types.isString(value) || !value)
-      return result;
-
-    try {
-      result = eval(value);
-    }
-    catch (e) {
-      console.log(e);
-    }
-    return result;
-  }
-
-  //TODO test performance for eval and parsing with RegExp and choose faster one
-  //TODO add other possible color notations
-
-  var parsedAsFunction;
-  if (Utils.Types.isString(options)) {
-    switch (true) {
-      case /^#[\da-f]{3}$/i.test(options):
-        options = {
-          r: parseInt(options[1], 16) / 255,
-          g: parseInt(options[2], 16) / 255,
-          b: parseInt(options[3], 16) / 255
-        };
-        break;
-      case /^#[\da-f]{6}$/i.test(options):
-        options = {
-          r: parseInt(options.slice(1, 3), 16) / 255,
-          g: parseInt(options.slice(3, 5), 16) / 255,
-          b: parseInt(options.slice(5, 7), 16) / 255
-        };
-        break;
-      case !!(parsedAsFunction = tryParse(options)):
-        options = parsedAsFunction;
-        break;
-      default:
-        options = {};
-    }
-  }
-  B.Color.base.constructor.call(this, options);
-});
-/** @property {number} R value from 0 to 1 */
-B.Color.property('r', {value: 0, get: true, set: true});
-/** @property {number} G value from 0 to 1 */
-B.Color.property('g', {value: 0, get: true, set: true});
-/** @property {number} B value from 0 to 1 */
-B.Color.property('b', {value: 0, get: true, set: true});
-/** @property {number} A value from 0 to 1 */
-B.Color.property('a', {value: 1, get: true, set: true});
-
-/** Increase/decrease R/G/B by provided value with clamping. Creates new instance, except cases when nothing is modified.
- * @param {number} value Value to add.
- * @returns {B.Color}
- */
-B.Color.method('add', function(value) {
-  return !value ? this : new B.Color({ //TODO add check for no changes after normalization even if value is not zero
-      r: Utils.Number.normalize(this._r + value),
-      g: Utils.Number.normalize(this._g + value),
-      b: Utils.Number.normalize(this._b + value),
-      a: this._a
-    }
-  )
-});
-/** Export color as rgba() string.
- * @returns {string}
- */
-B.Color.method('toString', function toString() {
-  return 'rgba(' + ((this._r * 255) | 0) + ',' + ((this._g * 255) | 0) + ',' + ((this._b * 255) | 0) + ',' + this._a + ')';
-});
-
-//endregion
-
-//region B.Rect
-
-B.Rect = cls('B.Rect', MObject, function Rect(options) {
-  B.Rect.base.constructor.apply(this, arguments);
-});
-
-B.Rect.property('left', {value: 0, get: true, set: true});
-B.Rect.property('top', {value: 0, get: true, set: true});
-B.Rect.property('width', {value: 0, get: true, set: true});
-B.Rect.property('height', {value: 0, get: true, set: true});
-
-B.Rect.property('right', {
-  get: function() {
-    return this._left + this._width
-  },
-  set: function(value) {
-    this._left = value - this._width;
-  }
-});
-B.Rect.property('bottom', {
-  get: function() {
-    return this._top + this._height
-  },
-  set: function(value) {
-    this._top = value - this._height;
-  }
-});
-B.Rect.property('hCenter', {
-  get: function() {
-    return this._left + this._width / 2
-  },
-  set: function(value) {
-    this._left = value - this._width / 2;
-  }
-});
-B.Rect.property('vCenter', {
-  get: function() {
-    return this._top + this._height / 2
-  },
-  set: function(value) {
-    this._top = value - this._height / 2;
-  }
-});
-
-//endregion
-
-//region B.Spacing
-
-B.Spacing = cls('B.Spacing', MObject, function Spacing(options) {
-  if (Utils.Types.isNumber(options)) {
-    options = {left: options, top: options, right: options, bottom: options};
-  }
-  B.Spacing.base.constructor.call(this, options);
-});
-
-B.Spacing.property('left', {value: 0, get: true, set: true});
-B.Spacing.property('top', {value: 0, get: true, set: true});
-B.Spacing.property('right', {value: 0, get: true, set: true});
-B.Spacing.property('bottom', {value: 0, get: true, set: true});
-
-//endregion
-
 //region B.Data
 
 /**
- * @property {object} items Multidimentional associative array of data.
- * @property {object[]} names Names of subarrays. Each item is an object like {<id>:<name>} and corresponds to a deeper dimension.
- * @property {boolean} empty True if there are no primitive values in array.
- * @property {boolean} numeric True if all values on one dimension are numeric.
- * @property {number} min Minimum value if numeric==true. Otherwise null.
- * @property {number} max Maximum value if numeric==true. Otherwise null.
+ * @class Multidimensional data storage.
  */
 B.Data = cls('B.Data', MObject, function Data(options) {
   B.Data.base.constructor.apply(this, arguments);
 });
 
+/**
+ * @property {object} items Multidimentional associative array of data.
+ */
 B.Data.property('items', {
   value: null, get: true, set: function(value) {
     this._items = value;
@@ -262,12 +48,26 @@ B.Data.property('items', {
   }
 
 });
+/**
+ * @property {object[]} names Names of subarrays. Each item is an object like {<id>:<name>} and corresponds to a deeper dimension.
+ */
 B.Data.property('names', {value: null, get: true, set: true});
+/**
+ * @property {boolean} empty True if there are no primitive values in array.
+ */
 B.Data.property('empty', {value: true, get: true});
+/**
+ * @property {boolean} numeric True if all values on one dimension are numeric.
+ */
 B.Data.property('numeric', {value: false, get: true});
 
 B.Data.property('minMaxCache', {value: null});
 
+/**
+ * @method Get minimum value in specified subarray.
+ * @parameter {String[]} path Path to subarray.
+ * @returns {number|null} Minimum value if this is numeric and subarray has any numeric values, otherwise null.
+ */
 B.Data.method('min', function(path) {
   if (!this._numeric)
     return null;
@@ -302,6 +102,11 @@ B.Data.method('min', function(path) {
   return cache._min;
 });
 
+/**
+ * @method Get maximum value in specified subarray.
+ * @parameter {String[]} path Path to subarray.
+ * @returns {number|null} Maximum value if this is numeric and subarray has any numeric values, otherwise null.
+ */
 B.Data.method('max', function(path) {
   if (!this._numeric)
     return null;
@@ -338,8 +143,9 @@ B.Data.method('max', function(path) {
 
 
 /**
- * Extract item from array. If the path can not be traversed or item at the end of the path is not a primitive, consider it invalid item and return null,
+ * @method Extract item from array. If the path can not be traversed or item at the end of the path is not a primitive, consider it invalid item and return null,
  * @param {String[]} path Array of ids each corresponding to a deeper dimension.
+ * @returns {*}
  */
 B.Data.method('item', function item(path) {
   path = [].concat(path);
@@ -354,6 +160,7 @@ B.Data.method('item', function item(path) {
 /**
  * Get name of a subarray or item.
  * @param {String[]} path Array of ids each corresponding to a deeper dimension.
+ * * @returns {String||null}
  */
 B.Data.method('name', function name(path) {
   path = [].concat(path);
@@ -372,23 +179,47 @@ B.Transformer = cls('B.Transformer', MObject, function Transformer(options) {
   B.Transformer.base.constructor.apply(this, arguments);
 });
 
+/**
+ * @property {B.Data} data Data.
+ */
 B.Transformer.property('data', {value: null, get: true, set: true, type: B.Data});
+/**
+ * @proprety {String[]} path Predefined path to a slice from which transformer should get data.
+ */
 B.Transformer.property('path', {value: null, get: true, set: true});
+/**
+ * @property {number} min Value to which minimum item in slice will be transformed.
+ */
 B.Transformer.property('min', {value: 0, get: true, set: true});
+/**
+ * @property {number} max Value to which minimum item in slice will be transformed.
+ */
 B.Transformer.property('max', {value: 1, get: true, set: true});
+/**
+ * @property {number} nodata Value to which null item in slice will be transformed.
+ */
 B.Transformer.property('nodata', {value: 0.5, get: true, set: true});
 
+/**
+ * @property {number} minItem Minimum item in slice.
+ */
 B.Transformer.property('minItem', {
   get: function() {
     return this._data && this._data.getNumeric() ? this._data.min(this._path) : -1
   }
 });
+/**
+ * @property {number} maxItem Maximum item in slice.
+ */
 B.Transformer.property('maxItem', {
   get: function() {
     return this._data && this._data.getNumeric() ? this._data.max(this._path) : 1
   }
 });
 
+/**
+ * @method Linear interpolation.
+ */
 B.Transformer.method('_interpolate', function _interpolate(minV, v, maxV, minR, maxR) {
   var dataRange = maxV - minV;
   var dataOffset = v - minV;
@@ -396,6 +227,10 @@ B.Transformer.method('_interpolate', function _interpolate(minV, v, maxV, minR, 
   return minR + dataOffset * resultRange / dataRange;
 });
 
+/**
+ * @method Get item from data.
+ * @param {String[]} path Path in slice.
+ */
 B.Transformer.method('item', function(path) {
   if (!this._data || !this._data.getNumeric())
     return this._nodata;
@@ -404,13 +239,21 @@ B.Transformer.method('item', function(path) {
   return this._data && this._data.item(path);
 });
 
-B.Transformer.method('transform', function(value) {
-  if (!Utils.Types.isNumber(value))
+/**
+ * @method Transform item.
+ * @param {Number|null} item Item.
+ */
+B.Transformer.method('transform', function(item) {
+  if (!Utils.Types.isNumber(item))
     return this._nodata;
 
-  return this._interpolate(this.getMinItem(), value, this.getMaxItem(), this._min, this._max);
+  return this._interpolate(this.getMinItem(), item, this.getMaxItem(), this._min, this._max);
 });
 
+/**
+ * @method Get and transform item from data.
+ * @param {String[]} path Path in slice.
+ */
 B.Transformer.method('transformedItem', function(path1, path2, offset) {
   if (!path2)
     return this.transform(this.item(path1));
@@ -421,6 +264,10 @@ B.Transformer.method('transformedItem', function(path1, path2, offset) {
   }
 });
 
+/**
+ * @method Get name of a subslice.
+ * @param {String[]} path Path in slice.
+ */
 B.Transformer.method('name', function(path) {
   if (this._path)
     path = this._path.concat(path || []);
@@ -468,194 +315,29 @@ B.ColorTransformer.method('transformedItem', function(path1, path2, offset) {
 
 //endregion
 
-//region B.Control
-
-B.Control = cls('B.Control', B.Rect, function Control(options) {
-  B.Control.base.constructor.apply(this, arguments);
-});
-
-B.Control.property('context', {value: null, get: true, set: true});
-B.Control.property('enabled', {value: true, get: true, set: true});
-B.Control.property('visible', {value: true, get: true, set: true});
-B.Control.property('hAlign', {value: B.HAlign.none, get: true, set: true});
-B.Control.property('vAlign', {value: B.VAlign.none, get: true, set: true});
-
-B.Control.property('left', {value: 0, get: true, set: true});
-B.Control.property('top', {value: 0, get: true, set: true});
-B.Control.property('width', {value: 0, get: true, set: true});
-B.Control.property('height', {value: 0, get: true, set: true});
-B.Control.property('margin', {value: 0, get: true, set: true, type: B.Spacing});
-B.Control.property('padding', {value: 4, get: true, set: true, type: B.Spacing});
-B.Control.property('background', {value: '#FFFFFF', get: true, set: true, type: B.Color});
-B.Control.property('borderColor', {value: '#000000', get: true, set: true, type: B.Color});
-B.Control.property('borderWidth', {value: 0, get: true, set: true}); //TODO implement independent width for each side
-B.Control.property('borderRadius', {value: 0, get: true, set: true});
-
-B.Control.property('innerLeft', {
-  get: function() {
-    return this._left + this._margin.getLeft() + this._borderWidth + this._padding.getLeft() + this._borderRadius;
-  }
-});
-B.Control.property('innerTop', {
-  get: function() {
-    return this._top + this._margin.getTop() + this._borderWidth + this._padding.getTop() + this._borderRadius;
-  }
-});
-B.Control.property('innerWidth', {
-  get: function() {
-    return Math.max(0, this._width - this._margin.getLeft() - this._margin.getRight()
-      - this._borderWidth - this._borderWidth
-      - this._padding.getLeft() - this._padding.getRight()
-      - this._borderRadius * 2)
-      ;
-  }
-});
-B.Control.property('innerHeight', {
-  get: function() {
-    return Math.max(0, this._height - this._margin.getTop() - this._margin.getBottom()
-      - this._borderWidth - this._borderWidth
-      - this._padding.getTop() - this._padding.getBottom()
-      - this._borderRadius * 2)
-      ;
-  }
-});
-
-B.Control.method('reflow', function reflow(space) {
-  switch (this._hAlign) {
-    case B.HAlign.left:
-      this._left = space.getLeft();
-      break;
-    case B.HAlign.center:
-      this._left = space.getHCenter() - this._width / 2;
-      break;
-    case B.HAlign.right:
-      this._left = space.getRight() - this._width;
-      break;
-    case B.HAlign.fit:
-      this._left = space.getLeft();
-      this._width = space.getWidth();
-      break;
-  }
-  switch (this._vAlign) {
-    case B.VAlign.top:
-      this._top = space.getTop();
-      break;
-    case B.VAlign.center:
-      this._top = space.getVCenter() - this._height / 2;
-      break;
-    case B.VAlign.bottom:
-      this._top = space.getBottom() - this._height;
-      break;
-    case B.VAlign.fit:
-      this._top = space.getTop();
-      this._height = space.getHeight();
-      break;
-  }
-});
-
-B.Control.method('repaint', function repaint() {
-  if (!this._context || !this._visible)
-    return;
-  this._context.fillStyle = this._background.toString();
-  this._context.fillRect(
-    Math.round(this._left + this._margin.getLeft() + this._borderWidth / 2),
-    Math.round(this._top + this._margin.getTop() + this._borderWidth / 2),
-    Math.round(this._width - this._margin.getLeft() - this._margin.getRight() - this._borderWidth),
-    Math.round(this._height - this._margin.getTop() - this._margin.getBottom() - this._borderWidth)
-  ); //TODO add borders and radius
-});
-
-B.Control.property('_invalidateTimeout', {value: null});
-B.Control.method('_invalidate', function _invalidate(reflow, repaint) {
-  if (reflow)
-    this.reflow(this);
-  if (repaint)
-    this.repaint();
-  this._invalidateTimeout = null;
-});
-B.Control.method('invalidate', function(reflow, repaint) {
-  if (this._invalidateTimeout)
-    return;
-  this._invalidateTimeout = setTimeout(this._invalidate.bind(this, reflow, repaint));
-});
-
-B.Control.method('_bindNativeOne', function(node, name, callback) { //TODO move to Utils.DOM
-  if (window.addEventListener) {
-    node.addEventListener(name, callback, false);
-  } else if (window.attachEvent) {
-    node.attachEvent('on' + name, callback);
-  } else {
-    node['on' + name] = callback;
-  }
-});
-B.Control.method('_unbindNativeOne', function(node, name, callback) {
-  if (window.addEventListener) {
-    node.removeEventListener(name, callback, false);
-  } else if (window.attachEvent) {
-    node.detachEvent('on' + name, callback);
-  } else {
-    node['on' + name] = null;
-  }
-});
-
-B.Control.property('nativeHandler');
-B.Control.method('_bindNative', function(node) {
-  this._nativeHandler = this._nativeHandler || this._handleNative.bind(this);
-  this._bindNativeOne(node, 'mousemove', this._nativeHandler);
-  this._bindNativeOne(node, 'mousedown', this._nativeHandler);
-  this._bindNativeOne(node, 'mouseup', this._nativeHandler);
-  this._bindNativeOne(node, 'mousewheel', this._nativeHandler);
-  //TODO add other events
-});
-B.Control.method('_handleNative', function(e) {
-  var args = {
-    type: e.type,
-    x: e.pageX - e.target.offsetLeft,
-    y: e.pageY - e.target.offsetTop,
-    cancel: false,
-    reflow: false,
-    repaint: false
-  };
-  this._handle(args);
-});
-B.Control.method('_unbindNative', function(node) {
-  if (this._nativeHandler) {
-    this._unbindNativeOne(node, 'mousemove', this._nativeHandler);
-    this._unbindNativeOne(node, 'mousedown', this._nativeHandler);
-    this._unbindNativeOne(node, 'mouseup', this._nativeHandler);
-    this._unbindNativeOne(node, 'mousewheel', this._nativeHandler);
-  }
-});
-
-B.Control.property('capture', {value: false, get: true});
-B.Control.property('hovered', {value: false, get: true});
-B.Control.property('pressed', {value: false, get: true});
-B.Control.method('_check', function(x, y) {
-  return this.getInnerLeft() <= x && x <= this.getInnerLeft() + this.getInnerWidth() &&
-    this.getInnerTop() <= y && y <= this.getInnerTop() + this.getInnerHeight();
-});
-B.Control.method('_handle', function(args) {
-  if (!this._capture && (args.cancel || !this._check(args.x, args.y)))
-    return;
-  var handlerName = '_on' + args.type.replace(/^(mouse)?(.*)$/, function(_, f, e) {
-      return Utils.String.toUpperFirst(f || '') + Utils.String.toUpperFirst(e || '')
-    });
-  if (this[handlerName])
-    this[handlerName](args);
-  //TODO add some automatic way to pass event to children controls
-});
-
-//endregion
-
 //region B.Label
 
+/**
+ * @class Simple label.
+ */
 B.Label = cls('B.Label', B.Control);
 
-B.Label.property('height', {value: B.FONT_SIZE, get: true, set: true});
-B.Label.property('lines', {value: ''});
+/**
+ * @property {String[]} lines Lines to render after splitting, ellipsis and other internal calculations.
+ */
+B.Label.property('lines');
+/**
+ * @property {String} text Text to render. If no text specified with any alignment except non - sizes collapse to zero and nothing is rendered.
+ */
 B.Label.property('text', {value: '', get: true, set: true});
+/**
+ * @property {B.Direction} direction Text direction.
+ */
 B.Label.property('direction', {value: B.Direction.right, get: true, set: true});
-B.Label.property('color', {value: '#888888', get: true, set: true, type: B.Color}); //TODO encapsulate font into class
+/**
+ * @property {B.Font} direction Text font.
+ */
+B.Label.property('font', {value: null, get: true, set: true, type: B.Font});
 
 B.Label.method('reflow', function reflow(space) {
   if (!this._context || !this._visible)
@@ -681,14 +363,15 @@ B.Label.method('reflow', function reflow(space) {
   var width = this._direction === B.Direction.left || this._direction === B.Direction.right ? this.getInnerWidth() : this.getInnerHeight();
   var height = this._direction === B.Direction.left || this._direction === B.Direction.right ? this.getInnerHeight() : this.getInnerWidth();
 
-  this._context.font = this._context.font.replace(/\d+px/, B.FONT_SIZE + 'px');
-  var spaceWidth = this._context.measureText(' ').width;
-  var threeDotsWidth = this._context.measureText('...').width;
+  var spaceSize = this._font.measure(' ');
+  var spaceWidth = spaceSize.width;
+  var threeDotsWidth = this._font.measure('...').width;
+  var lineHeight = spaceSize.height;
   var lines = this._text.split('\n'),
     maxWidth = 0,
     isLastLine = false;
   for (var i = 0; i < lines.length && !isLastLine; i++) {
-    isLastLine = (i + 1) * B.FONT_SIZE <= height && (i + 2) * B.FONT_SIZE > height;
+    isLastLine = (i + 1) * lineHeight <= height && (i + 2) * lineHeight > height;
     var line = '',
       lineWidth = 0,
       words = lines[i].split(' '),
@@ -697,7 +380,7 @@ B.Label.method('reflow', function reflow(space) {
     for (var j = 0; j < words.length; j++) {
       var rSpaceWidth = lineWidth ? spaceWidth : 0;
       var llAdd = isLastLine ? threeDotsWidth : 0;
-      var wordWidth = this._context.measureText(words[j]).width;
+      var wordWidth = this._font.measure(words[j]).width;
       if (lineWidth + rSpaceWidth + wordWidth + llAdd < width) {
         line += (line ? ' ' : '') + words[j];
         lineWidth += rSpaceWidth + wordWidth;
@@ -738,10 +421,12 @@ B.Label.method('reflow', function reflow(space) {
   this._lines = lines;
 
   if (this._hAlign !== B.HAlign.none) {
+    this._width = maxWidth;
     this._width = this._width - this.getInnerWidth() + maxWidth;
   }
   if (this._vAlign !== B.VAlign.none) {
-    this._height = this._height - this.getInnerHeight() + lines.length * B.FONT_SIZE;
+    this._height = lines.length * lineHeight; //TODO implement and use setInnerHeight
+    this._height = this._height - this.getInnerHeight() + lines.length * lineHeight;
   }
 
   if (this._direction === B.Direction.up || this._direction === B.Direction.down) {
@@ -759,44 +444,46 @@ B.Label.method('repaint', function repaint() {
 
   B.Label.base.repaint.apply(this, arguments);
 
-  var oh = -this.getInnerHeight() / 2;
-  this._context.fillStyle = '#000000';
-
-  // this._context.fillRect(-20, -20, 40, 40);
+  var oh = -this.getInnerHeight() / 2,
+    rotation = 0;
   this._context.translate(Math.round(this._left + this._width / 2), Math.round(this._top + this._height / 2));
-//   this._context.fillRect(-20, -20, 40, 40);
   if (this._direction === B.Direction.up) {
-
-    this._context.rotate(-Math.PI / 2);
-    //     this._context.fillRect(-20, -20, 40, 40);
+    this._context.rotate(rotation = -Math.PI / 2);
     oh = -this.getInnerWidth() / 2;
   }
+  else if (this._direction === B.Direction.down) {
+    this._context.rotate(rotation = Math.PI / 2);
+    oh = -this.getInnerWidth() / 2;
+  }
+  else if (this._direction === B.Direction.left) {
+    this._context.rotate(rotation = -Math.PI);
+  }
 
-  //TODO add other types of rotation
-
-  this._context.fillStyle = this._color.toString();
-  this._context.font = this._context.font.replace(/\d+px/, B.FONT_SIZE + 'px');
+  this._context.fillStyle = this._font.getColor().toString();
+  this._context.font = this._font.toString();
   this._context.textBaseline = 'top';
   for (var i = 0; i < this._lines.length; i++) {
-    var w = this._context.measureText(this._lines[i]).width;
-    this._context.fillText(this._lines[i], Math.round(-w / 2), Math.round(oh + i * B.FONT_SIZE));
+    var size = this._font.measure(this._lines[i]); //TODO calculate this on reflow
+    this._context.fillText(this._lines[i], Math.round(-size.width / 2), Math.round(oh + i * size.height));
   }
-  this._context.fillStyle = '#FF0000';
-  if (this._direction === B.Direction.up) {
-    //      this._context.fillRect(-20, -20, 40, 40);
-    this._context.rotate(Math.PI / 2);
-  }
-  //this._context.fillRect(-20, -20, 40, 40);
+
+  this._context.rotate(-rotation);
   this._context.translate(-Math.round(this._left + this._width / 2), -Math.round(this._top + this._height / 2));
-  //this._context.fillRect(-20, -20, 40, 40);
 });
 
 //endregion
 
 //region B.SliderTick
 
+/**
+ * @class B.SliderTick Slider tick.
+ */
+
 B.SliderTick = cls('B.SliderTick', B.Label);
 
+/**
+ * @property {String[]} path Path to slice with which tick is associated.
+ */
 B.SliderTick.property('path', {value: null, get: true, set: true});
 
 //TODO add automatic text setup depending on data
@@ -805,6 +492,9 @@ B.SliderTick.property('path', {value: null, get: true, set: true});
 
 //region B.Slider
 
+/**
+ * @class B.Slider Slider to travel between slices in one of data dimensions.
+ */
 B.Slider = cls('B.Slider', B.Control);
 
 B.Slider.property('_buttonHovered', {value: false});
@@ -837,9 +527,9 @@ B.Slider.method('_onMouseMove', function(args) {
   }
   else {
     this._position = Utils.Number.normalize((args.x - start) / length);
-    if (this.offset() < 0.1)
+    if (this.offset() < 0.03)
       this._position = Math.floor((this._position * (this._ticks.length - 1))) / (this._ticks.length - 1);
-    if (this.offset() > 0.9)
+    if (this.offset() > 0.97)
       this._position = Math.ceil((this._position * (this._ticks.length - 1))) / (this._ticks.length - 1);
 
     args.repaint = true;
@@ -851,7 +541,9 @@ B.Slider.method('_onMouseUp', function(args) {
   this._sliderDragged = false;
 });
 
-
+/**
+ * @property {number} position Position between slices. 0 - first slice, 1 - last slice, all intermediate values are supported.
+ */
 B.Slider.property('position', {value: 0, get: true, set: true});
 B.Slider.property('ticks', {
   value: null, get: true, set: function(value) {
@@ -865,14 +557,23 @@ B.Slider.property('ticks', {
   }
 });
 
+/**
+ * @method Get path of closest tick before current position.
+ */
 B.Slider.method('floor', function() {
   return this._ticks[Math.floor(this._position * (this._ticks.length - 1))].getPath();
 });
 
+/**
+ * @method Get position between two closest ticks from 0 to 1.
+ */
 B.Slider.method('offset', function() {
   return this._position * (this._ticks.length - 1) - Math.floor((this._position * (this._ticks.length - 1)));
 });
 
+/**
+ * @method Get path of closest tick after current position.
+ */
 B.Slider.method('ceil', function() {
   return this._ticks[Math.ceil(this._position * (this._ticks.length - 1))].getPath();
 });
@@ -894,7 +595,7 @@ B.Slider.method('reflow', function(space) {
 
   B.Slider.base.reflow.apply(this, arguments);
 
-  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;
+  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;//TODO extract magic numbers to properties, maybe constant
   var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
   for (i = 0; i < this._ticks.length; i++) {
     this._ticks[i].setLeft(start + i * length / (this._ticks.length - 1) - this._ticks[i].getWidth() / 2);
@@ -933,10 +634,20 @@ B.Slider.method('repaint', function() {
     this._ticks[i].repaint();
   }
 
-  this._context.fillStyle = this._sliderHovered ? '#888888' : '#BBBBBB';
+  this._context.fillStyle = this._context.strokeStyle = this._sliderHovered ? '#888888' : '#BBBBBB';
+  this._context.lineWidth = 2;
+  this._context.globalAlpha = 0.5;
   this._context.beginPath();
-  this._context.arc(start + length * this._position, this.getInnerTop() + 16.5, 9, 0, Math.PI * 2);
+  this._context.arc(start + length * this._position, this.getInnerTop() + 16.5, 9 + 1, 0, Math.PI * 2);
   this._context.fill();
+  this._context.globalAlpha = 1;
+  this._context.stroke();
+
+  this._context.fillStyle = this._context.strokeStyle = '#888888';
+  this._context.beginPath();
+  this._context.arc(start + length * this._position, this.getInnerTop() + 16.5, 2, 0, Math.PI * 2);
+  this._context.fill();
+
 
 });
 
@@ -945,8 +656,14 @@ B.Slider.method('repaint', function() {
 
 //region B.Line
 
+/**
+ * @class Line.
+ */
 B.Line = cls('B.Line', B.Control);
 
+/**
+ * @property {number} x1 X-coordinate of first bubble. Utilizes Control's Left/Right properties so they form line's bounding rectangle.
+ */
 B.Line.property('x1', {
   get: function() {
     return this._left;
@@ -956,6 +673,9 @@ B.Line.property('x1', {
   }
 });
 
+/**
+ * @property {number} y1 Y-coordinate of first bubble. Utilizes Control's Top/Bottom properties so they form line's bounding rectangle.
+ */
 B.Line.property('y1', {
   get: function() {
     return this._top;
@@ -965,6 +685,9 @@ B.Line.property('y1', {
   }
 });
 
+/**
+ * @property {number} x1 X-coordinate of second bubble. Utilizes Control's Left/Right properties so they form line's bounding rectangle.
+ */
 B.Line.property('x2', {
   get: function() {
     return this._left + this._width;
@@ -974,6 +697,9 @@ B.Line.property('x2', {
   }
 });
 
+/**
+ * @property {number} y1 Y-coordinate of second bubble. Utilizes Control's Top/Bottom properties so they form line's bounding rectangle.
+ */
 B.Line.property('y2', {
   get: function() {
     return this._top + this._height;
@@ -983,20 +709,18 @@ B.Line.property('y2', {
   }
 });
 
-B.Line.alias('stroke', 'borderColor');
-B.Line.alias('strokeWidth', 'borderWidth');
+B.Line.alias('stroke', 'border');
 
 B.Line.method('reflow', function() {
   //lines are not alignable, nothing to do
 });
 
 B.Line.method('repaint', function() {
-  if (!this._context || !this._visible || !this._borderWidth)
+  if (!this._context || !this._visible || !this._border.getWidth())
     return;
 
-  var pixelOffset = (this._borderWidth % 2) / 2;
-  this._context.strokeStyle = this._borderColor.toString();
-  this._context.lineWidth = this._borderWidth;
+  var pixelOffset = (this._border.getWidth() % 2) / 2;
+  this._border.apply(this._context);
   this._context.beginPath();
   this._context.moveTo(Math.round(this.getX1()) + pixelOffset, Math.round(this.getY1()) + pixelOffset);
   this._context.lineTo(Math.round(this.getX2()) + pixelOffset, Math.round(this.getY2()) + pixelOffset);
@@ -1007,30 +731,73 @@ B.Line.method('repaint', function() {
 
 //region B.ControlCollection
 
+/**
+ * @class B.ControlCollection Autofilling collection of controls, whose one of the coordinate connected to interpolatable value.
+ */
 B.ControlCollection = cls('B.ControlCollection', B.Control);
 
+/**
+ * @property {Control[]} items Collection of controls.
+ */
 B.ControlCollection.property('items', {value: null});
+/**
+ * @property [number[]} values Values associated for each item.
+ */
 B.ControlCollection.property('values', {value: null});
+/**
+ * @property {function} class Constructor of which instances to be created as items.
+ */
 B.ControlCollection.property('class', {value: B.Control, get: true});
+/**
+ * @property {object} options Options for every instantiated item.
+ */
 B.ControlCollection.property('options', {value: null, get: true, set: true});
 
+/**
+ * @property {number} min Value of first item. It can not be obtained from transformer by collection itself because subcollection have to have different ranges.
+ */
 B.ControlCollection.property('min', {value: 0, get: true, set: true});
+/**
+ * @property {number} max Value of last item. It can not be obtained from transformer by collection itself because subcollection have to have different ranges.
+ */
 B.ControlCollection.property('max', {value: 0, get: true, set: true});
+/**
+ * @property {number} count Items count.
+ */
 B.ControlCollection.property('count', {value: 0, get: true, set: true});
+/**
+ * @property {B.Transformer} transformer Transformer to transform values into relative coordinates of items.
+ */
 B.ControlCollection.property('transformer', {value: null, get: true, set: true, type: B.Transformer});
+/**
+ * @property {B.Direction} direction Direction in which values grow, defines which coordinate of items will be variated.
+ */
 B.ControlCollection.property('direction', {value: B.Direction.right, get: true, set: true});
 
+/**
+ * @property {B.ControlCollection} subcollection Collection which is drawn between two each item. This one is not drawn actually but acts like a template.
+ */
 B.ControlCollection.property('subcollection', {value: null, get: true, set: true});
+/**
+ * @property {B.ControlCollection[]} subcollections Actual instances of subcollection for each itembetweenage.
+ */
 B.ControlCollection.property('subcollections', {value: null});
 
 B.ControlCollection.property('master', {value: null});
 B.ControlCollection.property('slave', {value: null});
+/**
+ * @method Ability to synchronize same levels of different collection, so deeper subcollections of other one could not overlap higher subcollections of current.
+ * @param {B.ControlCollection} other Other collection. Each of it's subcollections level will be drawn right before correcponding level of current collection.
+ */
 B.ControlCollection.method('synchronize', function(other) {
   this._slave = other;
   if (other)
     other.master = this;
 });
 
+/**
+ * @method Create items and values.
+ */
 B.ControlCollection.method('_recreate', function() {
   if (!this._class || !Utils.Types.isFunction(this._class) || !this._count) {
     this._items = this._values = this._subcollections = null;
@@ -1054,11 +821,17 @@ B.ControlCollection.method('_recreate', function() {
   }
 });
 
+/**
+ * @method Do some specific modifications for items depending on value.
+ * @param {number} value
+ */
 B.ControlCollection.method('_applyValue');
 
 B.ControlCollection.method('_reflowChildren', function(space) {
   if (!this._context || !this._visible)
     return;
+
+  this.setPadding(0);
 
   if (
     !this._items || !this._values || (this._subcollection && !this._subcollections) ||
@@ -1100,9 +873,10 @@ B.ControlCollection.method('_reflowChildren', function(space) {
   return size;
 });
 
-B.ControlCollection.method('_reflowSelf', function(space) {
+B.ControlCollection.method('_reflowSelf', function(space, callBase) {
 
-  B.ControlCollection.base.reflow.apply(this, arguments);
+  if (callBase)
+    B.ControlCollection.base.reflow.apply(this, arguments);
 
   if (this._subcollections) {
     for (var i = 0; i < this._subcollections.length; i++) {
@@ -1111,6 +885,7 @@ B.ControlCollection.method('_reflowSelf', function(space) {
       this._subcollections[i].setTop(this._top);
       this._subcollections[i].setWidth(this._width);
       this._subcollections[i].setHeight(this._height);
+      this._subcollections[i]._reflowSelf(space);
     }
   }
 });
@@ -1129,7 +904,7 @@ B.ControlCollection.method('_realignChildren', function() {
       if (this._direction === B.Direction.up)
         position = 1 - position;
 
-      this._items[i].setTop(this.getInnerTop() + this.getInnerHeight() * position - this._items[i].getHeight() / 2);
+      this._items[i].setTop(this.getInnerTop() + 50 + (this.getInnerHeight() - 100) * position - this._items[i].getHeight() / 2);
     }
     else {
       if (this._vAlign === B.VAlign.top)
@@ -1141,7 +916,7 @@ B.ControlCollection.method('_realignChildren', function() {
       if (this._direction === B.Direction.left)
         position = 1 - position;
 
-      this._items[i].setLeft(this.getInnerLeft() + this.getInnerWidth() * position - this._items[i].getWidth() / 2);
+      this._items[i].setLeft(this.getInnerLeft() + 50 + (this.getInnerWidth() - 100) * position - this._items[i].getWidth() / 2); //TODO extract this values as scale object
     }
     if (this._subcollections && this._subcollections[i])
       this._subcollections[i]._realignChildren();
@@ -1151,9 +926,9 @@ B.ControlCollection.method('_realignChildren', function() {
 B.ControlCollection.method('reflow', function(space) {
   if (!this._context || !this._visible)
     return;
-  this._reflowChildren(space);
-  this._reflowSelf(space);
-  this._realignChildren();
+  this._reflowChildren(space); //first we have to recursively calculate all items sizes in all subcollections and calculate own size depending on them
+  this._reflowSelf(space, true); //then we can apply self alignment and recursively align subcollections with self
+  this._realignChildren(); //finally we can set each item's position depending on self position and transformed value
 });
 
 B.ControlCollection.method('_repaint', function(currentLevel, levelToRender) {
@@ -1188,6 +963,9 @@ B.ControlCollection.method('repaint', function() {
 
 //region B.LineCollection
 
+/**
+ * @class B.LineCollection ControlCollection modification for B.Line.
+ */
 B.LineCollection = cls('B.LineCollection', B.ControlCollection);
 
 B.LineCollection.property('class', {value: B.Line, get: true});
@@ -1224,17 +1002,17 @@ B.LineCollection.method('_realignChildren', function() {
         position = 1 - position;
 
       this._items[i].setX1(this.getInnerLeft());
-      this._items[i].setY1(this.getInnerTop() + this.getInnerHeight() * position);
+      this._items[i].setY1(this.getInnerTop() + 50 + (this.getInnerHeight() - 100) * position); //TODO move this values to scale object
       this._items[i].setX2(this.getInnerLeft() + this.getInnerWidth());
-      this._items[i].setY2(this.getInnerTop() + this.getInnerHeight() * position);
+      this._items[i].setY2(this.getInnerTop() + 50 + (this.getInnerHeight() - 100) * position);
     }
     else {
       if (this._direction === B.Direction.left)
         position = 1 - position;
 
-      this._items[i].setX1(this.getInnerLeft() + this.getInnerWidth() * position);
+      this._items[i].setX1(this.getInnerLeft() + 50 + (this.getInnerWidth() - 100) * position);
       this._items[i].setY1(this.getInnerTop());
-      this._items[i].setX2(this.getInnerLeft() + this.getInnerWidth() * position);
+      this._items[i].setX2(this.getInnerLeft() + 50 + (this.getInnerWidth() - 100) * position);
       this._items[i].setY2(this.getInnerTop() + this.getInnerHeight());
     }
 
@@ -1251,6 +1029,9 @@ B.LineCollection.method('_realignChildren', function() {
 
 //region B.LabelCollection
 
+/**
+ * @class B.LineCollection ControlCollection modification for B.Label.
+ */
 B.LabelCollection = cls('B.LabelCollection', B.ControlCollection);
 
 B.LabelCollection.property('class', {value: B.Label, get: true});
@@ -1258,7 +1039,6 @@ B.LabelCollection.property('class', {value: B.Label, get: true});
 B.LabelCollection.method('_applyValue', function(item, value) {
   item.setText(value.toFixed(2));//TODO add number formatting into labels
 });
-
 
 B.LabelCollection.method('_hideOverlappingChildren', function(left, right) {
   for (var i = 0; i < this._items.length; i++) {
@@ -1279,7 +1059,6 @@ B.LabelCollection.method('_hideOverlappingChildren', function(left, right) {
   }
 });
 
-
 B.LabelCollection.method('reflow', function() {
   B.LabelCollection.base.reflow.apply(this, arguments)
 
@@ -1294,10 +1073,22 @@ B.LabelCollection.method('reflow', function() {
 
 //region B.Axis
 
+/**
+ * @class B.Axis Parts of a plot in one dimension.
+ */
 B.Axis = cls('B.Axis', B.Control);
 
+/**
+ * @property {B.Label} Axis title, rendered outside of actual plot.
+ */
 B.Axis.property('title', {value: null, get: true, set: true, type: B.Label});
+/**
+ * @property {B.LineCollection} Grid lines.
+ */
 B.Axis.property('grid', {value: null, get: true, set: true, type: B.LineCollection});
+/**
+ * @property {B.LabelCollection} Grid labels, rendered outside of actual plot.
+ */
 B.Axis.property('labels', {value: null, get: true, set: true, type: B.LabelCollection});
 
 B.Axis.method('reflow', function(space) {
@@ -1322,25 +1113,34 @@ B.Axis.method('repaint', function() {
 
 //endregion
 
-//region B.Point
+//region B.Bubble
 
-B.Point = cls('B.Point', B.Control);
+/**
+ * @class B.Bubble Bubble.
+ */
+B.Bubble = cls('B.Bubble', B.Control);
 
-B.Point.method('_check', function(x, y) {
+B.Bubble.method('_check', function(x, y) {
   x -= this.getX();
   y -= this.getY();
   return Math.sqrt(x * x + y * y) <= this.getR();
 });
 
-B.Point.method('_onMouseMove', function(args) {
+B.Bubble.method('_onMouseMove', function(args) {
   var isInside = this._check(args.x, args.y);
   args.repaint = (this._hovered !== (this._hovered = this._capture = (isInside && !args.cancel)));
   args.cancel = args.cancel || isInside;
 });
 
-B.Point.property('path', {value: null, get: true, set: true});
+/**
+ * @property {String[]} path Path to data slice to which bubble is assigned.
+ */
+B.Bubble.property('path', {value: null, get: true, set: true});
 
-B.Point.property('x', {
+/**
+ * @property {number} x X-coordinate of center. Utilizes Left/Right properties so they form bounding rectangle.
+ */
+B.Bubble.property('x', {
   get: function() {
     return this._left + this.getR();
   },
@@ -1349,7 +1149,10 @@ B.Point.property('x', {
   }
 });
 
-B.Point.property('y', {
+/**
+ * @property {number} y Y-coordinate of center. Utilizes Left/Right properties so they form bounding rectangle.
+ */
+B.Bubble.property('y', {
   get: function() {
     return this._top + this.getR();
   },
@@ -1358,7 +1161,10 @@ B.Point.property('y', {
   }
 });
 
-B.Point.property('r', {
+/**
+ * @property {number} r Bubble radius. Utilizes Left/Right properties so they form bounding rectangle.
+ */
+B.Bubble.property('r', {
   get: function() {
     return this._width / 2;
   },
@@ -1370,55 +1176,75 @@ B.Point.property('r', {
   }
 });
 
-B.Point.property('color', {
+/**
+ * @property {B.Color} color Bubble color. Utilizes background and border to draw some magic.
+ */
+B.Bubble.property('color', {
   get: function() {
-    return this._borderColor;
+    return this._border.getColor();
   },
   set: function(value) {
-    this.setBorderColor(value);
-    this.setBorderWidth(2);
-    var fill = this._borderColor.clone();
+    this._border.setColor(value);
+    this._border.setWidth(2);
+    var fill = this._border.getColor().clone();
     fill.setA(fill.getA() / 2);
     this.setBackground(fill);
   }
 });
 
-B.Point.method('reflow', function() {
+B.Bubble.method('reflow', function() {
 
 });
 
-B.Point.method('repaint', function() {
+B.Bubble.method('repaint', function() {
   if (!this._context || !this._visible || !this.getR())
     return;
 
-  this._context.fillStyle = this._background.add(this._hovered ? -0.2 : 0).toString();//TODO make hovered effects configurable
-  this._context.strokeStyle = this._borderColor.add(this._hovered ? -0.2 : 0).toString();
-  this._context.strokeWidth = this._borderWidth;
   this._context.beginPath();
-  this._context.arc(this.getX(), this.getY(), this.getR() - this._borderWidth / 2, 0, 2 * Math.PI);
+  this._context.arc(this.getX(), this.getY(), this.getR() - this._border.getWidth() / 2, 0, 2 * Math.PI);
   this._context.closePath();
+
+  this._background.add(this._hovered ? -0.2 : 0).apply(this._context);//TODO make hovered effects configurable
   this._context.fill();
+  this._border.getColor().add(this._hovered ? -0.2 : 0).apply(this._context);
   this._context.stroke();
 });
 
 //endregion
 
-//region B.PointLabel
+//region B.BubbleLabel
 
-B.PointLabel = cls('B.PointLabel', B.Control, function(options) {
-  B.PointLabel.base.constructor.apply(this, arguments);
-  this._point = new B.Point();
+/**
+ * @class B.BubbleLabel Bubble with label.
+ * @type {Function}
+ */
+B.BubbleLabel = cls('B.BubbleLabel', B.Control, function(options) {
+  B.BubbleLabel.base.constructor.apply(this, arguments);
+  this._bubble = new B.Bubble();
   this._label = new B.Label();
-}); //TODO consider inheritance from Label or maybe make _label property public so label could be stylized
+});
 
-B.PointLabel.property('point');
-B.PointLabel.property('label');
+B.BubbleLabel.property('bubble');
+B.BubbleLabel.property('label');
 
-B.PointLabel.property('text', {get: true, set: true});
-B.PointLabel.property('radius', {value: 8, get: true, set: true});
-B.PointLabel.property('color', {value: '#888888', get: true, set: true, type: B.Color});
+/**
+ * @property {String} text Text of a label.
+ */
+B.BubbleLabel.property('text', {get: true, set: true});
+/**
+ * @property {B.Font} font Font of a label.
+ */
+B.BubbleLabel.property('font', {get: true, set: true, type: B.Font});
+/**
+ * @property {number} radius Radius of a bubble.
+ */
+B.BubbleLabel.property('radius', {value: 8, get: true, set: true});
+/**
+ * @property {B.Color} color Color of a bubble.
+ */
+B.BubbleLabel.property('color', {value: '#888888', get: true, set: true, type: B.Color});
 
-B.PointLabel.method('reflow', function(space) {
+B.BubbleLabel.method('reflow', function(space) {
   if (!this._context || !this._visible)
     return;
 
@@ -1426,9 +1252,10 @@ B.PointLabel.method('reflow', function(space) {
   this._label.setHAlign(B.HAlign.auto);
   this._label.setVAlign(B.VAlign.auto);
   this._label.setText(this._text);
+  this._label.setFont(this._font);
   this._label.reflow(space);
 
-  this._point.setContext(this._context);
+  this._bubble.setContext(this._context);
 
   var width = this._radius * 2 + this._label.getWidth();
   if (this._hAlign !== B.HAlign.none) {
@@ -1437,7 +1264,6 @@ B.PointLabel.method('reflow', function(space) {
     this._width = this._width - this.getInnerWidth() + width;
   }
 
-
   var height = Math.max(this._radius * 2, this._label.getHeight());
   if (this._vAlign !== B.VAlign.none) {
 
@@ -1445,20 +1271,20 @@ B.PointLabel.method('reflow', function(space) {
     this._height = this._height - this.getInnerHeight() + height;
   }
 
-  B.PointLabel.base.reflow.apply(this, arguments);
+  B.BubbleLabel.base.reflow.apply(this, arguments);
 
-  this._point.setX(this.getInnerLeft() + this.getInnerWidth() / 2 - width / 2 + this._radius);
-  this._point.setY(this.getInnerTop() + this.getInnerHeight() / 2);
-  this._point.setR(this._radius);
-  this._point.setColor(this._color);
+  this._bubble.setX(this.getInnerLeft() + this.getInnerWidth() / 2 - width / 2 + this._radius);
+  this._bubble.setY(this.getInnerTop() + this.getInnerHeight() / 2);
+  this._bubble.setR(this._radius);
+  this._bubble.setColor(this._color);
 
   this._label.setLeft(this.getInnerLeft() + this.getInnerWidth() / 2 - width / 2 + this._radius * 2);
   this._label.setTop(this.getInnerTop() + this.getInnerHeight() / 2 - this._label.getHeight() / 2);
 });
 
-B.PointLabel.method('repaint', function() {
-  B.PointLabel.base.repaint.apply(this, arguments);
-  this._point.repaint();
+B.BubbleLabel.method('repaint', function() {
+  B.BubbleLabel.base.repaint.apply(this, arguments);
+  this._bubble.repaint();
   this._label.repaint();
 });
 
@@ -1466,15 +1292,24 @@ B.PointLabel.method('repaint', function() {
 
 //region B.Legend
 
+/**
+ * @class Legend.
+ */
 B.Legend = cls('B.Legend', B.Control, function() {
   B.Legend.base.constructor.apply(this, arguments);
-  this._contItem = new B.PointLabel({radius: 0, text: '...'});
+  this._contItem = new B.BubbleLabel({radius: 0, text: '...'});
 });
 
 B.Legend.property('rows');
 B.Legend.property('contItem');
 
+/**
+ * @property {B.Label} title Title to show on top of a legend.
+ */
 B.Legend.property('title', {value: null, get: true, set: true, type: B.Label});
+/**
+ * @property {B.BubbleLabel[]} items Items to show.
+ */
 B.Legend.property('items', {
   value: null, get: true, set: function(value) {
     if (value === this._items)
@@ -1482,11 +1317,12 @@ B.Legend.property('items', {
     this._items = [];
     if (value) {
       for (var i = 0; i < value.length; i++)
-        this._items.push(new B.PointLabel(value[i]));
+        this._items.push(new B.BubbleLabel(value[i]));
     }
   }
 });
 
+B.Legend.property('font', {value: null, get: true, set: true, type: B.Font});
 
 B.Legend.method('reflow', function(space) {
 
@@ -1494,11 +1330,13 @@ B.Legend.method('reflow', function(space) {
     this._items[i].setContext(this._context);
     this._items[i].setHAlign(B.HAlign.auto);
     this._items[i].setVAlign(B.VAlign.auto);
+    this._items[i].setFont(this._font);
     this._items[i].reflow(space);
   }
   this._contItem.setContext(this._context);
   this._contItem.setHAlign(B.HAlign.auto);
   this._contItem.setVAlign(B.VAlign.auto);
+  this._contItem.setFont(this._font);
   this._contItem.reflow(space);
 
   if (this._hAlign !== B.HAlign.none)
@@ -1577,7 +1415,7 @@ B.Legend.method('reflow', function(space) {
     for (var j = 0; j < rows[i].items.length; j++) {
       rows[i].items[j].setLeft(this.getInnerLeft() + this.getInnerWidth() / 2 - rows[i].width / 2 + x);
       rows[i].items[j].setTop(top + y + rows[i].height / 2 - rows[i].items[j].getHeight() / 2);
-      rows[i].items[j].reflow(space);//TODO add content coordinates update to PointLabel so full reflow could not be necessary
+      rows[i].items[j].reflow(space);//TODO add content coordinates update to BubbleLabel so full reflow could not be necessary
       x += rows[i].items[j].getWidth();
 
     }
@@ -1600,10 +1438,19 @@ B.Legend.method('repaint', function() {
 
 //region B.ValueLegend
 
+/**
+ * @class B.ValueLegend Autofilling legend to show some dimension scale.
+ * @type {Function}
+ */
 B.ValueLegend = cls('B.ValueLegend', B.Legend);
 
+/**
+ * @property {B.Transformer} transformer Transformer to get range and transform values.
+ */
 B.ValueLegend.property('transformer', {value: null, get: true, set: true, type: B.Transformer});
-
+/**
+ * @property {number} count Count of interpolated items.
+ */
 B.ValueLegend.property('count', {value: 3, get: true, set: true});
 
 B.ValueLegend.method('_recreate', function() {
@@ -1634,7 +1481,7 @@ B.ValueLegend.method('_recreate', function() {
     else
       options.radius = tValue * 50;//TODO get this constant from chart somehow
 
-    this._items.push(new B.PointLabel(options));
+    this._items.push(new B.BubbleLabel(options));
   }
 });
 
@@ -1648,34 +1495,47 @@ B.ValueLegend.method('reflow', function(space) {
 //endregion
 
 //region B.Plot
-
+/**
+ * @class Plot area.
+ */
 B.Plot = cls('B.Plot', B.Control);
 
-B.Plot.property('points', {
+/**
+ * @property {B.Bubble[]} Bubbles to show on the plot.
+ */
+B.Plot.property('bubbles', {
   value: null, get: true, set: function(value) {
-    if (this._points !== value) {
-      this._points = [];
+    if (this._bubbles !== value) {
+      this._bubbles = [];
       if (value) {
         for (var i = 0; i < value.length; i++) {
-          this._points.push(new B.Point(value[i]));
+          this._bubbles.push(new B.Bubble(value[i]));
         }
       }
     }
   }
 });
+/**
+ * @property {B.Axis} x X-axis.
+ */
 B.Plot.property('x', {value: null, get: true, set: true, type: B.Axis});
+/**
+ * @property {B.Axis} y Y-axis.
+ */
 B.Plot.property('y', {value: null, get: true, set: true, type: B.Axis});
 
 B.Plot.method('_handle', function(args) {
-  if (this._points)
-    for (var i = this._points.length - 1; i >= 0; i--)
-      this._points[i]._handle(args);
+  if (this._bubbles)
+    for (var i = this._bubbles.length - 1; i >= 0; i--)
+      this._bubbles[i]._handle(args);
   B.Plot.base._handle.call(this, args);
 });
 
 B.Plot.method('reflow', function(space) {
   if (!this._context || !this._visible)
     return;
+
+  this.setPadding(0);
 
   if (this._x && this._y && this._x.getGrid() && this._y.getGrid())
     this._x.getGrid().synchronize(this._y.getGrid());
@@ -1713,9 +1573,9 @@ B.Plot.method('repaint', function() {
   if (this._y)
     this._y.repaint();
 
-  if (this._points)
-    for (var i = 0; i < this._points.length; i++)
-      this._points[i].repaint();
+  if (this._bubbles)
+    for (var i = 0; i < this._bubbles.length; i++)
+      this._bubbles[i].repaint();
 });
 
 //endregion
@@ -1725,6 +1585,10 @@ B.Plot.method('repaint', function() {
 B.Chart = cls('B.Chart', B.Control, function(options) {
   B.Chart.base.constructor.apply(this, arguments);
 });
+
+/**
+ * @property {B.Color[]} Default colors of bubbles if no color transformer provided.
+ */
 B.Chart.property('palette', {
   value: [
     '#82BAB6', '#B1CA40', '#EBAF36', '#60A1FA', '#FF462C',
@@ -1758,7 +1622,7 @@ B.Chart.property('cTransformer', {value: null, get: true, set: true, type: B.Col
 B.Chart.property('title', {value: null, get: true, set: true, type: B.Label});
 B.Chart.property('plot', {value: null, get: true, set: true, type: B.Plot});
 B.Chart.property('slider', {value: null, get: true, set: true, type: B.Slider});
-B.Chart.property('pointsLegend', {value: null, get: true, set: true, type: B.Legend});
+B.Chart.property('bubblesLegend', {value: null, get: true, set: true, type: B.Legend});
 B.Chart.property('colorLegend', {value: null, get: true, set: true, type: B.ValueLegend});
 B.Chart.property('radiusLegend', {value: null, get: true, set: true, type: B.ValueLegend});
 
@@ -1774,33 +1638,33 @@ B.Chart.method('_updateData', function() {
   if (!this._plot)
     return;
 
-  var points = this._plot.getPoints();
-  if (!points)
+  var bubbles = this._plot.getBubbles();
+  if (!bubbles)
     return;
 
   var sliderF = this._slider.floor();
   var sliderO = this._slider.offset();
   var sliderC = this._slider.ceil();
-  for (var i = 0; i < points.length; i++) {
-    var point = points[i],
-      pathF = point.getPath().concat(sliderF),
-      pathC = point.getPath().concat(sliderC);
+  for (var i = 0; i < bubbles.length; i++) {
+    var bubble = bubbles[i],
+      pathF = bubble.getPath().concat(sliderF),
+      pathC = bubble.getPath().concat(sliderC);
 
-    point.setContext(this._context);
+    bubble.setContext(this._context);
 
     if (this._xTransformer)
-      point.setX(this._plot.getInnerLeft() + this._plot.getInnerWidth() * this._xTransformer.transformedItem(pathF, pathC, sliderO));
+      bubble.setX(this._plot.getInnerLeft() + 50 + (this._plot.getInnerWidth() - 100) * this._xTransformer.transformedItem(pathF, pathC, sliderO));
 
     if (this._yTransformer)
-      point.setY(this._plot.getInnerTop() + this._plot.getInnerHeight() * (1 - this._yTransformer.transformedItem(pathF, pathC, sliderO)));
+      bubble.setY(this._plot.getInnerTop() + 50 + (this._plot.getInnerHeight() - 100) * (1 - this._yTransformer.transformedItem(pathF, pathC, sliderO)));
 
     if (this._rTransformer)
-      point.setR(50 * this._rTransformer.transformedItem(pathF, pathC, sliderO));
+      bubble.setR(50 * this._rTransformer.transformedItem(pathF, pathC, sliderO));
 
     if (this._cTransformer && this._cTransformer.getPath())
-      point.setColor(this._cTransformer.transformedItem(pathF, pathC, sliderO));
+      bubble.setColor(this._cTransformer.transformedItem(pathF, pathC, sliderO));
     else
-      point.setColor(this._palette[i % this._palette.length]);
+      bubble.setColor(this._palette[i % this._palette.length]);
 
     //TODO use relative coordinates here and transform them into absolute on Plot reflow
   }
@@ -1881,28 +1745,28 @@ B.Chart.method('reflow', function reflow(space) {
     legendHeight = Math.max(this._colorLegend.getHeight(), legendHeight);
   }
 
-  if (!(this._cTransformer && this._cTransformer.getPath()) && this._pointsLegend && this._plot && this._plot.getPoints()) {
-    var points = this._plot.getPoints(), items = [];
-    for (i = 0; i < points.length; i++)
+  if (!(this._cTransformer && this._cTransformer.getPath()) && this._bubblesLegend && this._plot && this._plot.getBubbles()) {
+    var bubbles = this._plot.getBubbles(), items = [];
+    for (i = 0; i < bubbles.length; i++)
       items.push({
-        text: this._data.name([''].concat(points[i].getPath())),
+        text: this._data.name([''].concat(bubbles[i].getPath())),
         color: this._palette[i % this._palette.length]
       });
 
-    this._pointsLegend.setContext(this._context);
-    this._pointsLegend.setItems(items); //TODO do not recreate items each time
-    this._pointsLegend.setHAlign(B.HAlign.left);
-    this._pointsLegend.setVAlign(legendVAlign);
-    this._pointsLegend.reflow(legendSpace);
+    this._bubblesLegend.setContext(this._context);
+    this._bubblesLegend.setItems(items); //TODO do not recreate items each time
+    this._bubblesLegend.setHAlign(B.HAlign.left);
+    this._bubblesLegend.setVAlign(legendVAlign);
+    this._bubblesLegend.reflow(legendSpace);
 
-    legendHeight = Math.max(this._pointsLegend.getHeight(), legendHeight);
+    legendHeight = Math.max(this._bubblesLegend.getHeight(), legendHeight);
   }
 
   //TODO current placing algorithm assumes that size legend is much taller than others because of items' bigger radiuses
   //TODO and much narrower because of  their lower count
   //TODO so it places size legend into right bottom corner
   //TODO and limits other legends' space to size legend's height and remaining chart's width
-  //TODO but points legend can have many items and require much more height than size legen
+  //TODO but bubbles legend can have many items and require much more height than size legen
   //TODO think about independent size calculation of every legend
 
   //TODO also think about user-defined alignments for everything except Plot
@@ -1936,7 +1800,7 @@ B.Chart.method('reflow', function reflow(space) {
   if (this._plot && this._plot.getX() && (labels = this._plot.getX().getLabels())) {
     labels.setContext(this._context);
     labels.setTransformer(this._xTransformer);
-    labels.setMin(this._xTransformer.getMinItem());
+    labels.setMin(this._xTransformer.getMinItem()); //TODO move this into collection class.
     labels.setMax(this._xTransformer.getMaxItem());
     labels.setHAlign(B.HAlign.fit);
     labels.setVAlign(B.VAlign.bottom);
@@ -2016,8 +1880,8 @@ B.Chart.method('repaint', function repaint() {
   if (this._cTransformer && this._cTransformer.getPath() && this._colorLegend)
     this._colorLegend.repaint();
 
-  if (!(this._cTransformer && this._cTransformer.getPath()) && this._pointsLegend && this._plot && this._plot.getPoints())
-    this._pointsLegend.repaint();
+  if (!(this._cTransformer && this._cTransformer.getPath()) && this._bubblesLegend && this._plot && this._plot.getBubbles())
+    this._bubblesLegend.repaint();
 
   var title;
   if (this._plot && this._plot.getX() && (title = this._plot.getX().getTitle()))
@@ -2040,7 +1904,7 @@ B.Chart.method('repaint', function repaint() {
 });
 
 B.Chart.default = {
-  title: {text: 'Title'},
+  title: {text: 'Title', font: {color: '#888888'}},
 
   hAlign: B.HAlign.fit,
   vAlign: B.VAlign.fit,
@@ -2051,67 +1915,77 @@ B.Chart.default = {
   rTransformer: {min: 0.1},
 
   plot: {
-    padding: 50, //TODO remove when scale is implemented
-    borderColor: '#888888',
-    borderWidth: 4,
+    border: {
+      color: '#BBBBBB',
+      Width: 4,
+    },
     background: '#EEEEEE',
     hAlign: B.HAlign.none,
     vAlign: B.VAlign.none,
-    points: [],
+    bubbles: [],
     x: {
-      title: {text: 'X'},
+      title: {text: 'X', font: {color: '#888888'}},
       grid: {
         count: 5,
         options: {
-          'strokeWidth': 2,
-          stroke: '#FFFFFF'
+          stroke: {
+            color: '#FFFFFF',
+            width: 2
+          }
         },
         subcollection: {
           count: 5,
           options: {
-            'strokeWidth': 1,
-            stroke: '#FFFFFF'
+            stroke: {
+              color: '#FFFFFF',
+              width: 1
+            }
           }
         }
       },
       labels: {
-        padding: {left: 50, right: 50}, //TODO remove when scale is implemented
         count: 5,
+        options: {font: {color: '#888888'}},
         subcollection: {
-          padding: {left: 50, left: 50}, //TODO remove when scale is implemented
-          count: 5
+          count: 5,
+          options: {font: {color: '#888888'}}
         }
       }
     },
     y: {
-      title: {text: 'Y'},
+      title: {text: 'Y', font: {color: '#888888'}},
       grid: {
         count: 5,
         options: {
-          'strokeWidth': 2,
-          stroke: '#FFFFFF'
+          stroke: {
+            color: '#FFFFFF',
+            width: 2
+          }
         },
         subcollection: {
-          count: 5, options: {
-            'strokeWidth': 1,
-            stroke: '#FFFFFF'
+          count: 5,
+          options: {
+            stroke: {
+              color: '#FFFFFF',
+              width: 1
+            }
           }
         }
       },
       labels: {
-        padding: {top: 50, bottom: 50}, //TODO remove when scale is implemented
         count: 5,
+        options: {font: {color: '#888888'}},
         subcollection: {
-          padding: {top: 50, bottom: 50}, //TODO remove when scale is implemented
-          count: 5
+          count: 5,
+          options: {font: {color: '#888888'}}
         }
       }
     }
   },
   slider: {},
-  colorLegend: {title: {}},
-  radiusLegend: {title: {}},
-  pointsLegend: {}
+  colorLegend: {title: {font: {color: '#888888'}}, font: {color: '#888888'}},
+  radiusLegend: {title: {font: {color: '#888888'}}, font: {color: '#888888'}},
+  bubblesLegend: {title: {text: 'Bubbles', font: {color: '#888888'}}, font: {color: '#888888'}}
 };
 
 //endregion

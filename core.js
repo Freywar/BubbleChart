@@ -9,15 +9,19 @@
 //object.setProperty
 //new Class({property:value[,...]})
 
-/// <summary> Namespace definition. </summary>
+/**
+ * Namespace definition. */
 function namespace() {
   return {}
-};
+}
 
-/// <summary> Class definition. </summary>
-/// <param name="base" type="Function"> Base class. </param>
-/// <param name="constructor" type="Function"> Constructor. </param>
-/// <returns type="Function"> Class. </returns>
+/**
+ * Class definition.
+ * @param {String} name Class name as to be shown in debugger.
+ * @param {Function} base Base class.
+ * @param {Function} constructor Constructor.
+ * @returns {Function} Class.
+ */
 function cls(name, base, constructor) {
   constructor = constructor || eval(function(options) {
       constructor.base.constructor.apply(this, arguments);
@@ -54,20 +58,21 @@ function cls(name, base, constructor) {
   return constructor;
 }
 
-/// <summary> Property definition. Creates local private member with same name and getter/setter if necessary. </summary>
-/// <param name="cls" type="Function"> Class. </param>
-/// <param name="name" type="String"> Name. </param>
-/// <param name="description" type="Object">
-/// Optional description:
-/// {
-///	    [value:<default_value>,]
-///     [get:true|<getter_function>]
-///	    [set:true|<setter_function>}
-///     [type:function]
-/// }
-/// 'true' creates default getter/setter automatically.
-/// If type is defined, default setter is enabled and set value is not instance of MObject setter will create new type using value as first parameter.
-/// </param>
+/**
+ * Property definition. Creates local private member with same name and getter/setter if necessary.
+ * @param {Function} cls Class.
+ * @param {String} name Name.
+ * @param {Object} description
+ * Optional description:
+ * {
+ *    [value:<default_value>,]
+ *    [get:true|<getter_function>]
+ *    [set:true|<setter_function>}
+ *    [type:function]
+ * }
+ * 'true' creates default getter/setter automatically.
+ * If type is defined, default setter is enabled and set value is not instance of MObject, setter will create new instance of type using value as first parameter.
+ */
 function property(cls, name, description) {
   var prototype = cls.prototype;
   description = description || {};
@@ -99,11 +104,12 @@ function property(cls, name, description) {
     prototype['set' + Utils.String.toUpperFirst(name)] = description.set;
 }
 
-/// <summary> Property definition. Creates local private member with same name and getter/setter if necessary. </summary>
-/// <param name="cls" type="Function"> Class. </param>
-/// <param name="name" type="String"> Name. </param>
-/// <param name="func" type="Function"> Method. If not specified abstract method call exception will be created. </param>
-/// </param>
+/**
+ * Property definition. Creates local private member with same name and getter/setter if necessary.
+ * @param {Function} cls Class.
+ * @param {String} name Name.
+ * @param {Function} func Method. If not specified abstract method call exception will be created.
+ */
 function method(cls, name, func) {
   cls.prototype[name] = func || function() {
       abstract(name);
@@ -111,12 +117,20 @@ function method(cls, name, func) {
   cls.prototype[name].displayName = (cls.displayName || cls.name) + '.' + name;
 }
 
-/// <summary> Abstract method call exception. </summary>
-/// <param name="name" type="String"> Optional method name. </param>
+/**
+ * Abstract method call exception.
+ * @param {String} name Optional method name.
+ */
 function abstract(name) {
   throw Error((name || 'This') + ' is an abstract method.');
 }
 
+/**
+ * Alias definition. If applied to property, aliasises only setter and getter.
+ * @param {Function} cls Class.
+ * @param {string} name Alias name.
+ * @param {string} otherName Existing member name.
+ */
 function alias(cls, name, otherName) {
   if (cls.prototype[otherName]) {
     cls.prototype[name] = cls.prototype[otherName];
@@ -125,13 +139,25 @@ function alias(cls, name, otherName) {
     cls.prototype['get' + Utils.String.toUpperFirst(name)] = cls.prototype['get' + Utils.String.toUpperFirst(otherName)];
     cls.prototype['set' + Utils.String.toUpperFirst(name)] = cls.prototype['set' + Utils.String.toUpperFirst(otherName)];
   }
-};
+}
 
+/**
+ * Enumeration definition.
+ * @param {Object} fields Members of enumeration.
+ * @returns {Object}
+ */
 function enumeration(fields) {
   return fields;
-};
+}
+
 
 var Utils = {
+  /**
+   * Copy members from one object to another.
+   * @param {Object} to
+   * @param {Object} from
+   * @returns {Object}
+   */
   extend: function(to, from) {
     to = to || {};
     if (from)
@@ -139,12 +165,11 @@ var Utils = {
         to[i] = from[i];
     return to;
   },
-  Color: {
-    random: function() {
-      return 'rgb(' + [(Math.random() * 255) | 0, (Math.random() * 255) | 0, (Math.random() * 255) | 0].join(',') + ')';
-    }
-  },
   DOM: {
+    /**
+     * Get screen size.
+     * @returns {{width: (Number|number), height: (Number|number)}}
+     */
     getScreenSize: function() {
       var w = window,
         d = document,
@@ -152,8 +177,17 @@ var Utils = {
         g = d.getElementsByTagName('body')[0],
         x = w.innerWidth || e.clientWidth || g.clientWidth,
         y = w.innerHeight || e.clientHeight || g.clientHeight;
-      return {x: x, y: y};
+      return {width: x, height: y};
     },
+    /**
+     * Create DOM element.
+     * @param {String} tagName
+     * @param {String} className
+     * @param {Element} parentNode
+     * @param {String} innerHTML
+     * @param {String} style
+     * @returns {Element}
+     */
     create: function(tagName, className, parentNode, innerHTML, style) {
       var result = document.createElement(tagName || 'div');
       result.className += className || '';
@@ -162,44 +196,135 @@ var Utils = {
       if (parentNode)
         parentNode.appendChild(result);
       return result;
+    },
+    /**
+     * Crossbrowser bind event to DOM element.
+     * @param {Element} node DOM Element to attach.
+     * @param {string} name Event name.
+     * @param {function} callback Callback.
+     */
+    bind: function(node, name, callback) {
+      if (window.addEventListener) {
+        node.addEventListener(name, callback, false);
+      } else if (window.attachEvent) {
+        node.attachEvent('on' + name, callback);
+      } else {
+        node['on' + name] = callback;
+      }
+    },
+    /**
+     * Crossbrowser unbind event from DOM element.
+     * @param {Element} node DOM Element to detach.
+     * @param {string} name Event name.
+     * @param {function} callback Callback.
+     */
+    unbind: function(node, name, callback) {
+      if (window.addEventListener) {
+        node.removeEventListener(name, callback, false);
+      } else if (window.attachEvent) {
+        node.detachEvent('on' + name, callback);
+      } else {
+        node['on' + name] = null;
+      }
     }
   },
   String: {
+    /**
+     * Make first letter upper.
+     * @param {string} s String.
+     * @returns {string}
+     */
     toUpperFirst: function(s) {
       return s[0].toUpperCase() + s.slice(1)
     },
+    /**
+     * Make first letter lower.
+     * @param {string} s String.
+     * @returns {string}
+     */
     toLowerFirst: function toLowerFirst(s) {
       return s[0].toLowerCase() + s.slice(1)
     }
   },
   Number: {
+    /**
+     * Clip number from 0 to 1.
+     * @param {number} v
+     * @returns {number}
+     */
     normalize: function(v) {
       return Math.max(0, Math.min(v, 1));
     }
   },
   Types: {
+    /**
+     * Check if value is object.
+     * @param value
+     * @returns {boolean}
+     */
     isObject: function(value) {
       return typeof value === 'object'
     },
+    /**
+     * Check if value is finite number and not a NaN.
+     * @param value
+     * @returns {boolean}
+     */
     isNumber: function(value) {
       return typeof value === 'number' && !isNaN(value) && isFinite(value);
     },
+    /**
+     * Check if value is integer.
+     * @param value
+     * @returns {boolean}
+     */
     isInt: function(value) {
       return this.isNumber(value) && ((value | 0) === value);
     },
+    /**
+     * Check if value is number and has fractional part. 1.0 won't be true.
+     * @param value
+     * @returns {*|boolean}
+     */
     isFloat: function(value) {
       return this.isNumber(value) && !this.isInt(value);
     },
+    /**
+     * Check if value is string.
+     * @param value
+     * @returns {boolean}
+     */
     isString: function(value) {
       return typeof value === 'string';
     },
+    /**
+     * Check if value is function.
+     * @param value
+     * @returns {boolean}
+     */
     isFunction: function(value) {
       return typeof  value === 'function';
+    }
+  },
+  Random: {
+    _seed: 0,
+    seed: function(seed) {
+      Utils.Random._seed = seed || Math.round(Math.random() * 15054456);
+      console.log('Random initialized with seed ' + Utils.Random._seed)
+    },
+    next: function() {
+      var hi = Utils.Random._seed * 48271 / 2147483647,
+        lo = Utils.Random._seed % (2147483647 / 48271),
+        test = 48271 * lo - (2147483647 % 48271) * hi;
+      return ((Utils.Random._seed = test > 0 ? test : test + 2147483647) / 2147483647);
     }
   }
 };
 
-/// <summary> Basic object. </summary>
+
+/**
+ * Basic object.
+ */
 var MObject = cls('MObject', Object, function(options) {
   this._id = ('Object' + (Object.id = (Object.id || 0) + 1));
   for (var i in this) {
@@ -219,8 +344,10 @@ var MObject = cls('MObject', Object, function(options) {
     }
 });
 
-/// <summary> Object serialization. </summary>
-/// <returns type="Object"> JSON with all properties which have setter and getter. </returns>
+/**
+ * @method Object serialization.
+ * @returns {Object} JSON with all properties which have setter and getter.
+ */
 MObject.prototype.serialize = function() {
   var result = {}, getter;
   for (var i in this)
@@ -233,6 +360,10 @@ MObject.prototype.serialize = function() {
   return result;
 };
 
+/**
+ * @method Object cloning.
+ * @returns {Object} New instance of current class with same public properties.
+ */
 MObject.prototype.clone = function() {
   return new this.constructor(this.serialize());
 };
