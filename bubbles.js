@@ -231,12 +231,23 @@ B.Transformer.method('_interpolate', function _interpolate(minV, v, maxV, minR, 
  * @method Get item from data.
  * @param {String[]} path Path in slice.
  */
-B.Transformer.method('item', function(path) {
+B.Transformer.method('item', function(path1, path2, offset) {
   if (!this._data || !this._data.getNumeric())
     return this._nodata;
-  if (this._path)
-    path = this._path.concat(path);
-  return this._data && this._data.item(path);
+  if (this._path) {
+    path1 = this._path.concat(path1);
+    if (path2)
+      path2 = this._path.concat(path2);
+  }
+  if (!path2)
+    return this._data.item(path1);
+  else {
+    var data1 = this._data.item(path1);
+    var data2 = this._data.item(path2);
+    if (!Utils.Types.isNumber(data1) || !Utils.Types.isNumber(data1))
+      return null;
+    return this._interpolate(0, offset, 1, data1, data2);
+  }
 });
 
 /**
@@ -311,164 +322,6 @@ B.ColorTransformer.method('transformedItem', function(path1, path2, offset) {
     result.setA(this._interpolate(0, offset || 0, 1, data1.getA(), data2.getA()));
     return result.toString();
   }
-});
-
-//endregion
-
-//region B.Label
-
-/**
- * @class Simple label.
- */
-B.Label = cls('B.Label', B.Control);
-
-/**
- * @property {String[]} lines Lines to render after splitting, ellipsis and other internal calculations.
- */
-B.Label.property('lines');
-/**
- * @property {String} text Text to render. If no text specified with any alignment except non - sizes collapse to zero and nothing is rendered.
- */
-B.Label.property('text', {value: '', get: true, set: true});
-/**
- * @property {B.Direction} direction Text direction.
- */
-B.Label.property('direction', {value: B.Direction.right, get: true, set: true});
-/**
- * @property {B.Font} direction Text font.
- */
-B.Label.property('font', {value: null, get: true, set: true, type: B.Font});
-
-B.Label.method('reflow', function reflow(space) {
-  if (!this._context || !this._visible)
-    return;
-
-  if (!this._text) {
-    if (this._hAlign !== B.HAlign.none) {
-      this._width = 0;
-    }
-    if (this._vAlign !== B.VAlign.none) {
-      this._height = 0;
-    }
-    return;
-  }
-
-  if (this._hAlign !== B.HAlign.none) {
-    this._width = space.getWidth();
-  }
-  if (this._vAlign !== B.VAlign.none) {
-    this._height = space.getHeight();
-  }
-
-  var width = this._direction === B.Direction.left || this._direction === B.Direction.right ? this.getInnerWidth() : this.getInnerHeight();
-  var height = this._direction === B.Direction.left || this._direction === B.Direction.right ? this.getInnerHeight() : this.getInnerWidth();
-
-  var spaceSize = this._font.measure(' ');
-  var spaceWidth = spaceSize.width;
-  var threeDotsWidth = this._font.measure('...').width;
-  var lineHeight = spaceSize.height;
-  var lines = this._text.split('\n'),
-    maxWidth = 0,
-    isLastLine = false;
-  for (var i = 0; i < lines.length && !isLastLine; i++) {
-    isLastLine = (i + 1) * lineHeight <= height && (i + 2) * lineHeight > height;
-    var line = '',
-      lineWidth = 0,
-      words = lines[i].split(' '),
-      lineSplitted = false;
-
-    for (var j = 0; j < words.length; j++) {
-      var rSpaceWidth = lineWidth ? spaceWidth : 0;
-      var llAdd = isLastLine ? threeDotsWidth : 0;
-      var wordWidth = this._font.measure(words[j]).width;
-      if (lineWidth + rSpaceWidth + wordWidth + llAdd < width) {
-        line += (line ? ' ' : '') + words[j];
-        lineWidth += rSpaceWidth + wordWidth;
-        maxWidth = Math.max(maxWidth, lineWidth);
-      }
-      else {
-        if (!line)
-          isLastLine = true;
-
-        if (isLastLine && j < words.length - 1) {
-          line += '...';
-          lineWidth += llAdd;
-        }
-        maxWidth = Math.max(maxWidth, lineWidth);
-        lines.splice(i, 0, line);
-        lineSplitted = true;
-        break;
-      }
-    }
-    if (!lineSplitted) {
-      if (line) {
-        lines[i] = line;
-      }
-      else {
-        lines.splice(i, 1);
-        i--;
-      }
-      if (isLastLine && lines.length > i - 1) {
-        lines[i] += '...';
-      }
-    }
-  }
-  if (isLastLine) {
-    lines.splice(i, lines.length - i);
-  }
-  //TODO add truncating of long words
-
-  this._lines = lines;
-
-  if (this._hAlign !== B.HAlign.none) {
-    this._width = maxWidth;
-    this._width = this._width - this.getInnerWidth() + maxWidth;
-  }
-  if (this._vAlign !== B.VAlign.none) {
-    this._height = lines.length * lineHeight; //TODO implement and use setInnerHeight
-    this._height = this._height - this.getInnerHeight() + lines.length * lineHeight;
-  }
-
-  if (this._direction === B.Direction.up || this._direction === B.Direction.down) {
-    var t = this._width;
-    this._width = this._height;
-    this._height = t;
-  }
-
-  B.Label.base.reflow.apply(this, arguments);
-});
-
-B.Label.method('repaint', function repaint() {
-  if (!this._context || !this._visible || !this._text)
-    return;
-
-  B.Label.base.repaint.apply(this, arguments);
-
-  var oh = -this.getInnerHeight() / 2,
-    rotation = 0;
-  this._context.translate(Math.round(this._left + this._width / 2), Math.round(this._top + this._height / 2));
-  if (this._direction === B.Direction.up) {
-    this._context.rotate(rotation = -Math.PI / 2);
-    oh = -this.getInnerWidth() / 2;
-  }
-  else if (this._direction === B.Direction.down) {
-    this._context.rotate(rotation = Math.PI / 2);
-    oh = -this.getInnerWidth() / 2;
-  }
-  else if (this._direction === B.Direction.left) {
-    this._context.rotate(rotation = -Math.PI);
-  }
-
-  this._context.fillStyle = this._font.getColor().toString();
-  this._context.font = this._font.toString();
-  this._context.textBaseline = 'top';
-  for (var i = 0; i < this._lines.length; i++) {
-    var size = this._font.measure(this._lines[i]); //TODO calculate this on reflow
-    this._context.fillText(this._lines[i], Math.round(-size.width / 2), Math.round(oh + i * size.height));
-  }
-
-  this._context.rotate(-rotation);
-  this._context.translate(-Math.round(this._left + this._width / 2), -Math.round(this._top + this._height / 2));
 });
 
 //endregion
@@ -1625,12 +1478,17 @@ B.Chart.property('slider', {value: null, get: true, set: true, type: B.Slider});
 B.Chart.property('bubblesLegend', {value: null, get: true, set: true, type: B.Legend});
 B.Chart.property('colorLegend', {value: null, get: true, set: true, type: B.ValueLegend});
 B.Chart.property('radiusLegend', {value: null, get: true, set: true, type: B.ValueLegend});
+B.Chart.property('tooltip', {value: null, get: true, set: true, type: B.Tooltip});
 
 B.Chart.method('_handle', function(args) {
   if (this._plot)
     this._plot._handle(args);
   if (this._slider)
     this._slider._handle(args);
+
+  if (args.reflow || args.repaint)
+    this._reflowTooltip();
+
   this._invalidate(args.reflow, args.repaint);
 });
 
@@ -1668,6 +1526,61 @@ B.Chart.method('_updateData', function() {
 
     //TODO use relative coordinates here and transform them into absolute on Plot reflow
   }
+});
+
+B.Chart.property('_hoveredBubble');
+B.Chart.method('_reflowTooltip', function() {
+  if (!this._plot || !this._tooltip)
+    return;
+
+  var hoveredBubble = this._plot.getBubbles().filter(function(b) {
+    return b.getHovered()
+  })[0];
+  if (hoveredBubble && hoveredBubble !== this._hoveredBubble) {
+
+    var bubbles = this._plot.getBubbles();
+    if (!bubbles)
+      return;
+
+    var sliderF = this._slider.floor();
+    var sliderO = this._slider.offset();
+    var sliderC = this._slider.ceil();
+    var pathF = hoveredBubble.getPath().concat(sliderF),
+      pathC = hoveredBubble.getPath().concat(sliderC),
+      name = this._data.name([''].concat(hoveredBubble.getPath())),
+      nameF = this._data.name([''].concat(pathF)),
+      nameC = this._data.name([''].concat(pathC));
+
+    var lines = [name + ', ' + (nameF === nameC ? nameF : nameF + ' - ' + nameC)], value;
+
+
+    if (this._xTransformer)
+      lines.push(this._xTransformer.name() + ': ' + ((value = this._xTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
+
+    if (this._yTransformer)
+      lines.push(this._yTransformer.name() + ': ' + ((value = this._yTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
+
+    if (this._rTransformer)
+      lines.push(this._rTransformer.name() + ': ' + ((value = this._rTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
+
+    if (this._cTransformer && this._cTransformer.getPath())
+      lines.push(this._cTransformer.name() + ': ' + ((value = this._cTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
+
+    this._tooltip.setText(Utils.Array.unique(lines).join('\n'));
+
+  }
+
+  this._hoveredBubble = hoveredBubble;
+
+  this._tooltip.setContext(this._context);
+  this._tooltip.setVisible(!!hoveredBubble);
+  if (hoveredBubble) {
+    this._tooltip.setX(hoveredBubble.getX());
+    this._tooltip.setY(hoveredBubble.getY());
+    this._tooltip.setOffset(hoveredBubble.getR());
+    this._tooltip.getBorder().setColor(hoveredBubble.getColor());
+  }
+  this._tooltip.reflow(this._plot.getInnerRect());
 });
 
 B.Chart.method('reflow', function reflow(space) {
@@ -1855,6 +1768,8 @@ B.Chart.method('reflow', function reflow(space) {
 
   this._updateData();
 
+  this._reflowTooltip();
+
   //TODO support user defined alignments
 
   B.Chart.base.reflow.apply(this, arguments);
@@ -1901,6 +1816,9 @@ B.Chart.method('repaint', function repaint() {
 
   if (this._plot)
     this._plot.repaint();
+
+  if (this._tooltip)
+    this._tooltip.repaint();
 });
 
 B.Chart.default = {
@@ -1985,7 +1903,17 @@ B.Chart.default = {
   slider: {},
   colorLegend: {title: {font: {color: '#888888'}}, font: {color: '#888888'}},
   radiusLegend: {title: {font: {color: '#888888'}}, font: {color: '#888888'}},
-  bubblesLegend: {title: {text: 'Bubbles', font: {color: '#888888'}}, font: {color: '#888888'}}
+  bubblesLegend: {title: {text: 'Bubbles', font: {color: '#888888'}}, font: {color: '#888888'}},
+  tooltip: {
+    font: {color: '#888888'},
+    background: 'rgba(255,255,255,0.5)',
+    border: {
+      width: 1,
+      radius: 3
+    },
+    padding: 0,
+    margin: 0
+  }
 };
 
 //endregion

@@ -318,6 +318,18 @@ var Utils = {
         test = 48271 * lo - (2147483647 % 48271) * hi;
       return ((Utils.Random._seed = test > 0 ? test : test + 2147483647) / 2147483647);
     }
+  },
+  Array: {
+    /**
+     * Remove duplicates from array.
+     * @param array
+     * @returns {Array}
+     */
+    unique: function(array) {
+      return array.filter(function(o, i, a) {
+        return a.indexOf(o) === i
+      });
+    }
   }
 };
 
