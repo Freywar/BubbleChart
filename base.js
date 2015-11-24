@@ -1250,6 +1250,8 @@ B.Tooltip.method('repaint', function() {
 
   this._context.translate(Math.round(this._left) + aliasOffset, Math.round(this._top) + aliasOffset);
 
+  this._context.beginPath();
+
   this._context.moveTo(borderR, 0);
 
   if (side === B.Direction.down) {

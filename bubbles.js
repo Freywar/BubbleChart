@@ -357,9 +357,8 @@ B.Slider.property('_sliderDragged', {value: false});
 B.Slider.method('_onMouseDown', function(args) {
   var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;
   var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
-  var sl = start + length * this._position;
   var st = this.getInnerTop() + 16.5;
-  this._sliderDragged = args.x >= sl - 9 && args.x <= sl + 9 && args.y >= st - 9 && args.y <= st + 9;
+  this._sliderDragged = args.x >= start && args.x <= start + length && args.y >= st - 9 && args.y <= st + 9;
 });
 
 B.Slider.method('_onMouseMove', function(args) {
@@ -503,7 +502,6 @@ B.Slider.method('repaint', function() {
 
 
 });
-
 
 //endregion
 
