@@ -254,6 +254,21 @@ var Utils = {
      */
     normalize: function(v) {
       return Math.max(0, Math.min(v, 1));
+    },
+    /**
+     * Clip number from min to max.
+     * @param {number} min
+     * @param {number} v
+     * @param {number} max
+     * @returns {number}
+     */
+    clip: function(min, v, max) {
+      if (min > max) {
+        var t = min;
+        min = max;
+        max = t;
+      }
+      return Math.max(min, Math.min(v, max));
     }
   },
   Types: {
@@ -330,7 +345,12 @@ var Utils = {
         return a.indexOf(o) === i
       });
     }
-  }
+  },
+  isOpera: !!window.opera || navigator.userAgent.indexOf(' OPR/') >= 0,
+  isFF: typeof InstallTrigger !== 'undefined',
+  isSafari: Object.prototype.toString.call(window.HTMLElement).indexOf('Constructor') > 0,
+  isChrome: !!window.chrome && !(!!window.opera || navigator.userAgent.indexOf(' OPR/') >= 0),
+  isIe: /*@cc_on!@*/false || !!document.documentMode,
 };
 
 
@@ -345,16 +365,20 @@ var MObject = cls('MObject', Object, function(options) {
       setter.call(this, this[i])
     }
   }
+  this.update(options);
+});
+
+MObject.prototype.update = function(options) {
   if (options)
     for (var i in options) {
       var ui = Utils.String.toUpperFirst(i);
       if (this['set' + ui])
         this['set' + ui](options[i]);
       else if ((this[i] instanceof Event) && options[i] instanceof Delegate)
-        this[i].add(options[i])
+        this[i].add(options[i]);
       else throw Error('Unknown member ' + i);
     }
-});
+};
 
 /**
  * @method Object serialization.

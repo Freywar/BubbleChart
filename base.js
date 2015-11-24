@@ -646,6 +646,33 @@ B.Control.method('reflow', function reflow(space) {
 });
 
 /**
+ * @method Clip current context by border.
+ */
+B.Control.method('_clip', function() {
+  if (this._context) {
+    this._context.save();
+    this._context.beginPath();
+    this._context.rect(
+      Math.round(this._left + this._margin.getLeft() + this._border.getWidth()),
+      Math.round(this._top + this._margin.getTop() + this._border.getWidth()),
+      Math.round(this._width - this._margin.getLeft() - this._margin.getRight() - this._border.getWidth() * 2),
+      Math.round(this._height - this._margin.getTop() - this._margin.getBottom() - this._border.getWidth() * 2)
+    );
+    this._context.clip();
+  }
+});
+
+/**
+ * @method Unclip current context.
+ */
+B.Control.method('_unclip', function() {
+  if (this._context) {
+    this._context.restore(); //TODO find a way to avoid full restoring and add check for clip called other that one time
+  }
+});
+
+
+/**
  * @method Render current state on current context property.
  */
 B.Control.method('repaint', function repaint() {
@@ -707,7 +734,7 @@ B.Control.method('_bindNative', function(node) {
   Utils.DOM.bind(node, 'mousemove', this._nativeHandler);
   Utils.DOM.bind(node, 'mousedown', this._nativeHandler);
   Utils.DOM.bind(node, 'mouseup', this._nativeHandler);
-  Utils.DOM.bind(node, 'mousewheel', this._nativeHandler);
+  Utils.DOM.bind(node, Utils.isFF ? 'DOMMouseScroll' : 'mousewheel', this._nativeHandler);
   //TODO add other events
 });
 /**
@@ -722,7 +749,8 @@ B.Control.method('_handleNative', function(e) {
     y: e.pageY - e.target.offsetTop,
     cancel: false,
     reflow: false,
-    repaint: false
+    repaint: false,
+    native: e
   };
   this._handle(args);
 });
@@ -736,7 +764,7 @@ B.Control.method('_unbindNative', function(node) {
     Utils.DOM.unbind(node, 'mousemove', this._nativeHandler);
     Utils.DOM.unbind(node, 'mousedown', this._nativeHandler);
     Utils.DOM.unbind(node, 'mouseup', this._nativeHandler);
-    Utils.DOM.unbind(node, 'mousewheel', this._nativeHandler);
+    Utils.DOM.unbind(node, Utils.isFF ? 'DOMMouseScroll' : 'mousewheel', this._nativehandler);
   }
 });
 
@@ -766,7 +794,10 @@ B.Control.method('_check', function(x, y) {
 B.Control.method('_handle', function(args) {
   if (!this._capture && (args.cancel || !this._check(args.x, args.y)))
     return;
-  var handlerName = '_on' + args.type.replace(/^(mouse)?(.*)$/, function(_, f, e) {
+  var type = args.type;
+  if (Utils.isFF && type === 'DOMMouseScroll')
+    type = 'mousewheel';
+  var handlerName = '_on' + type.replace(/^(mouse)?(.*)$/, function(_, f, e) {
       return Utils.String.toUpperFirst(f || '') + Utils.String.toUpperFirst(e || '')
     });
   if (this[handlerName])

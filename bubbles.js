@@ -582,6 +582,170 @@ B.Line.method('repaint', function() {
 
 //endregion
 
+//region B.Scale
+
+/**
+ * @class B.Scale Transformer from relative coordinates(0,1) to screen.
+ * Rect properties define area to which relative coordinates should be mapped.
+ */
+B.Scale = cls('B.Scale', B.Rect);
+
+/**
+ * @property {B.Spacing} padding Scale-independent padding, screen pixels.
+ */
+B.Scale.property('padding', {value: 0, get: true, set: true, type: B.Spacing});
+
+/**
+ * @property {number} offsetX Horizontal offset, screen pixels.
+ */
+B.Scale.property('offsetX', {
+  value: 0, get: true, set: function(value) {
+    var sx = 1 - this._scaleX;
+    this._offsetX = Utils.Number.clip(
+      (this.getLeft() + this._padding.getLeft()) * (1 - this._scaleX),
+      value,
+      (this.getRight() - this._padding.getRight()) * (1 - this._scaleX)
+    );
+  }
+});
+
+/**
+ * @property {number} offsetY Vertical offset, screen pixels.
+ */
+B.Scale.property('offsetY', {
+  value: 0, get: true, set: function(value) {
+    var sx = 1 - this._scaleY;
+    this._offsetY = Utils.Number.clip(
+      (this.getTop() + this._padding.getTop()) * (1 - this._scaleY),
+      value,
+      (this.getBottom() - this._padding.getBottom()) * (1 - this._scaleY)
+    );
+  }
+});
+
+/**
+ * @property {number} scaleX Horizontal scale.
+ */
+B.Scale.property('scaleX', {
+  value: 1, get: true, set: function(value) {
+    this._scaleX = Utils.Number.clip(this._minScaleX, value, this._maxScaleX);
+  }
+});
+/**
+ * @property {number} scaleY Vertical scale.
+ */
+B.Scale.property('scaleY', {
+  value: 1, get: true, set: function(value) {
+    this._scaleY = Utils.Number.clip(this._minScaleY, value, this._maxScaleY);
+  }
+});
+
+/**
+ * @property {number} minScaleX Horizontal scale lower limit.
+ */
+B.Scale.property('minScaleX', {
+  value: 1, get: true, set: function(value) {
+    this._minScaleX = value;
+    this._maxScaleX = Math.max(value, this._maxScaleX);
+    this.setScaleX(this._scaleX);
+  }
+});
+/**
+ * @property {number} minScaleY Vertical scale lower limit.
+ */
+B.Scale.property('minScaleY', {
+  value: 1, get: true, set: function(value) {
+    this._minScaleY = value;
+    this._maxScaleY = Math.max(value, this._maxScaleY);
+    this.setScaleY(this._scaleY);
+  }
+});
+
+/**
+ * @property {number} maxScaleX Horizontal scale upper limit.
+ */
+B.Scale.property('maxScaleX', {
+  value: 10, get: true, set: function(value) {
+    this._maxScaleX = value;
+    this._minScaleX = Math.min(value, this._minScaleX);
+    this.setScaleX(this._scaleX);
+  }
+});
+/**
+ * @property {number} maxScaleY Vertical scale upper limit.
+ */
+B.Scale.property('maxScaleY', {
+  value: 10, get: true, set: function(value) {
+    this._maxScaleY = value;
+    this._minScaleY = Math.min(value, this._minScaleY);
+    this.setScaleY(this._scaleY);
+  }
+});
+
+/**
+ * @method Scale to rect, screen pixels.
+ */
+B.Scale.method('scaleTo', function(rect) {
+  var pScaleX = this._scaleX,
+    pScaleY = this._scaleY;
+
+  this.setScaleX(this._scaleX * this.getWidth() / rect.getWidth());
+  this.setScaleY(this._scaleY * this.getHeight() / rect.getHeight());
+
+  this.setOffsetX(this._offsetX + this.getLeft() - rect.getLeft() + (this._offsetX - rect.getLeft()) * (this._scaleX / pScaleX - 1));
+  this.setOffsetY(this._offsetY + this.getTop() - rect.getTop() + (this._offsetY - rect.getTop()) * (this._scaleY / pScaleY - 1));
+});
+
+/**
+ * @method Scale around a point.
+ * @param {number} addend Addend for scale.
+ * @param {number} x X-coordinate of a center point, screen pixels. Result area center by default.
+ * @param {number} y Y-coordinate of a center point, screen pixels. Result area center by default.
+ */
+B.Scale.method('scaleBy', function(addend, x, y) {
+  if (!Utils.Types.isNumber(x))
+    x = this.getCenterX();
+  if (!Utils.Types.isNumber(y))
+    y = this.getCenterY();
+
+  var pScaleX = this._scaleX,
+    pScaleY = this._scaleY;
+
+  this.setScaleX(this._scaleX + addend);
+  this.setScaleY(this._scaleY + addend);
+
+  this.setOffsetX(this._offsetX + (this._offsetX - x) * (this._scaleX / pScaleX - 1));
+  this.setOffsetY(this._offsetY + (this._offsetY - y) * (this._scaleY / pScaleY - 1));
+});
+
+/**
+ * @method Move by vector.
+ * @param {number} dx Vector X value, screen pixels.
+ * @param {number} dy Vector Y value, screen pixels.
+ */
+B.Scale.method('moveBy', function(dx, dy) {
+  this.setOffsetX(this._offsetX + dx);
+  this.setOffsetY(this._offsetY + dy);
+});
+
+/**
+ * @method Transform relative X-coordinate to screen.
+ * @param {number} x Relative X-coordinate.
+ */
+B.Scale.method('x', function(x) {
+  return ((this.getLeft() + this._padding.getLeft()) * (1 - x) + (this.getRight() - this._padding.getRight()) * x) * this._scaleX + this._offsetX;
+});
+
+/**
+ * @method Transform relative Y-coordinate to screen.
+ * @param {number} x Relative Y-coordinate.
+ */
+B.Scale.method('y', function(y) {
+  return ((this.getTop() + this._padding.getTop()) * (1 - y) + (this.getBottom() - this._padding.getBottom()) * y) * this._scaleY + this._offsetY;
+});
+
+//endregion
+
 //region B.ControlCollection
 
 /**
@@ -622,6 +786,10 @@ B.ControlCollection.property('count', {value: 0, get: true, set: true});
  * @property {B.Transformer} transformer Transformer to transform values into relative coordinates of items.
  */
 B.ControlCollection.property('transformer', {value: null, get: true, set: true, type: B.Transformer});
+/**
+ * @property {B.Scale} scale Transformer to transform relative coordinates of items to screen coordinates.
+ */
+B.ControlCollection.property('scale', {value: null, get: true, set: true, type: B.Scale});
 /**
  * @property {B.Direction} direction Direction in which values grow, defines which coordinate of items will be variated.
  */
@@ -710,6 +878,7 @@ B.ControlCollection.method('_reflowChildren', function(space) {
       this._subcollections[i].setHAlign(this._hAlign);
       this._subcollections[i].setVAlign(this._vAlign);
       this._subcollections[i].setDirection(this._direction);
+      this._subcollections[i].setScale(this._scale);
       size = Math.max(size, this._subcollections[i]._reflowChildren(space));
     }
   }
@@ -757,7 +926,7 @@ B.ControlCollection.method('_realignChildren', function() {
       if (this._direction === B.Direction.up)
         position = 1 - position;
 
-      this._items[i].setTop(this.getInnerTop() + 50 + (this.getInnerHeight() - 100) * position - this._items[i].getHeight() / 2);
+      this._items[i].setTop(this._scale.y(position) - this._items[i].getHeight() / 2);
     }
     else {
       if (this._vAlign === B.VAlign.top)
@@ -769,7 +938,7 @@ B.ControlCollection.method('_realignChildren', function() {
       if (this._direction === B.Direction.left)
         position = 1 - position;
 
-      this._items[i].setLeft(this.getInnerLeft() + 50 + (this.getInnerWidth() - 100) * position - this._items[i].getWidth() / 2); //TODO extract this values as scale object
+      this._items[i].setLeft(this._scale.x(position) - this._items[i].getWidth() / 2); //TODO extract this values as scale object
     }
     if (this._subcollections && this._subcollections[i])
       this._subcollections[i]._realignChildren();
@@ -809,7 +978,9 @@ B.ControlCollection.method('_repaint', function(currentLevel, levelToRender) {
 B.ControlCollection.method('repaint', function() {
   if (this._master)
     return; //master will call internal _repaint directly when he is repainted
+  this._clip();
   this._repaint(0);
+  this._unclip();
 });
 
 //endregion
@@ -840,6 +1011,7 @@ B.LineCollection.method('_reflowChildren', function(space) {
     this._items[i].setContext(this._context);
     if (this._subcollections && this._subcollections[i]) {
       this._subcollections[i].setContext(this._context);
+      this._subcollections[i].setScale(this._scale);
       this._subcollections[i]._reflowChildren(space);
     }
   }
@@ -855,17 +1027,17 @@ B.LineCollection.method('_realignChildren', function() {
         position = 1 - position;
 
       this._items[i].setX1(this.getInnerLeft());
-      this._items[i].setY1(this.getInnerTop() + 50 + (this.getInnerHeight() - 100) * position); //TODO move this values to scale object
+      this._items[i].setY1(this._scale.y(position));
       this._items[i].setX2(this.getInnerLeft() + this.getInnerWidth());
-      this._items[i].setY2(this.getInnerTop() + 50 + (this.getInnerHeight() - 100) * position);
+      this._items[i].setY2(this._scale.y(position));
     }
     else {
       if (this._direction === B.Direction.left)
         position = 1 - position;
 
-      this._items[i].setX1(this.getInnerLeft() + 50 + (this.getInnerWidth() - 100) * position);
+      this._items[i].setX1(this._scale.x(position));
       this._items[i].setY1(this.getInnerTop());
-      this._items[i].setX2(this.getInnerLeft() + 50 + (this.getInnerWidth() - 100) * position);
+      this._items[i].setX2(this._scale.x(position));
       this._items[i].setY2(this.getInnerTop() + this.getInnerHeight());
     }
 
@@ -876,6 +1048,11 @@ B.LineCollection.method('_realignChildren', function() {
       this._subcollections[i]._realignChildren();
     }
   }
+});
+
+B.LineCollection.method('reflow', function(space) {
+  this.setPadding(0);
+  B.LineCollection.base.reflow.apply(this, arguments);
 });
 
 //endregion
@@ -1059,6 +1236,7 @@ B.Bubble.method('repaint', function() {
 
   this._background.add(this._hovered ? -0.2 : 0).apply(this._context);//TODO make hovered effects configurable
   this._context.fill();
+  this._border.apply(this._context);
   this._border.getColor().add(this._hovered ? -0.2 : 0).apply(this._context);
   this._context.stroke();
 });
@@ -1351,7 +1529,10 @@ B.ValueLegend.method('reflow', function(space) {
 /**
  * @class Plot area.
  */
-B.Plot = cls('B.Plot', B.Control);
+B.Plot = cls('B.Plot', B.Control, function(options) {
+  B.Plot.base.constructor.apply(this, arguments)
+  this._scale = new B.Scale();
+});
 
 /**
  * @property {B.Bubble[]} Bubbles to show on the plot.
@@ -1377,6 +1558,8 @@ B.Plot.property('x', {value: null, get: true, set: true, type: B.Axis});
  */
 B.Plot.property('y', {value: null, get: true, set: true, type: B.Axis});
 
+B.Plot.property('scale', {get: true});
+
 B.Plot.method('_handle', function(args) {
   if (this._bubbles)
     for (var i = this._bubbles.length - 1; i >= 0; i--)
@@ -1384,11 +1567,34 @@ B.Plot.method('_handle', function(args) {
   B.Plot.base._handle.call(this, args);
 });
 
+B.Plot.method('_onMouseWheel', function(event) {
+  var delta = (Utils.isFF ? -event.native.detail : event.native.wheelDelta) > 0 ? 0.1 : -0.1;
+  this._scale.scaleBy(delta, event.x, event.y);
+  event.repaint = event.reflow = true;
+});
+
+B.Plot.property('_previousDragEvent');
+B.Plot.method('_onMouseDown', function(event) {
+  this._previousDragEvent = event;
+  this._capture = true;
+});
+
+B.Plot.method('_onMouseMove', function(event) {
+  if (this._previousDragEvent) {
+    this._scale.moveBy(event.x - this._previousDragEvent.x, event.y - this._previousDragEvent.y);
+    this._previousDragEvent = event;
+    event.repaint = event.reflow = true;
+  }
+});
+
+B.Plot.method('_onMouseUp', function(event) {
+  this._previousDragEvent = null;
+  this._capture = false;
+});
+
 B.Plot.method('reflow', function(space) {
   if (!this._context || !this._visible)
     return;
-
-  this.setPadding(0);
 
   if (this._x && this._y && this._x.getGrid() && this._y.getGrid())
     this._x.getGrid().synchronize(this._y.getGrid());
@@ -1421,6 +1627,8 @@ B.Plot.method('repaint', function() {
   if (!this._context || !this._visible)
     return;
   B.Plot.base.repaint.apply(this, arguments);
+
+  this._clip();
   if (this._x)
     this._x.repaint();
   if (this._y)
@@ -1429,6 +1637,7 @@ B.Plot.method('repaint', function() {
   if (this._bubbles)
     for (var i = 0; i < this._bubbles.length; i++)
       this._bubbles[i].repaint();
+  this._unclip();
 });
 
 //endregion
@@ -1503,6 +1712,7 @@ B.Chart.method('_updateData', function() {
   var sliderF = this._slider.floor();
   var sliderO = this._slider.offset();
   var sliderC = this._slider.ceil();
+  var scale = this._plot.getScale();
   for (var i = 0; i < bubbles.length; i++) {
     var bubble = bubbles[i],
       pathF = bubble.getPath().concat(sliderF),
@@ -1511,10 +1721,10 @@ B.Chart.method('_updateData', function() {
     bubble.setContext(this._context);
 
     if (this._xTransformer)
-      bubble.setX(this._plot.getInnerLeft() + 50 + (this._plot.getInnerWidth() - 100) * this._xTransformer.transformedItem(pathF, pathC, sliderO));
+      bubble.setX(scale.x(this._xTransformer.transformedItem(pathF, pathC, sliderO)));
 
     if (this._yTransformer)
-      bubble.setY(this._plot.getInnerTop() + 50 + (this._plot.getInnerHeight() - 100) * (1 - this._yTransformer.transformedItem(pathF, pathC, sliderO)));
+      bubble.setY(scale.y(1 - this._yTransformer.transformedItem(pathF, pathC, sliderO)));
 
     if (this._rTransformer)
       bubble.setR(50 * this._rTransformer.transformedItem(pathF, pathC, sliderO));
@@ -1596,7 +1806,7 @@ B.Chart.method('reflow', function reflow(space) {
     this._height = space.getHeight();
   }
 
-  innerSpace = new B.Rect({
+  var innerSpace = new B.Rect({
     left: this.getInnerLeft(),
     top: this.getInnerTop(),
     width: this.getInnerWidth(),
@@ -1682,9 +1892,6 @@ B.Chart.method('reflow', function reflow(space) {
   //TODO but bubbles legend can have many items and require much more height than size legen
   //TODO think about independent size calculation of every legend
 
-  //TODO also think about user-defined alignments for everything except Plot
-
-
   innerSpace.setHeight(innerSpace.getHeight() - legendHeight);
 
   var title;
@@ -1702,13 +1909,18 @@ B.Chart.method('reflow', function reflow(space) {
     title.setHAlign(B.HAlign.left);
     title.setVAlign(B.VAlign.center);
     title.setDirection(B.Direction.up);
-    title.setText(this._yTransformer.name() || 'Y')
+    title.setText(this._yTransformer.name() || 'Y');
     title.reflow(innerSpace);
     innerSpace.setLeft(title.getLeft() + title.getWidth());
     innerSpace.setWidth(innerSpace.getWidth() - title.getWidth());
   }
 
   var labels, labelsBottom = innerSpace.getBottom();
+  var scale = this._plot.getScale();
+  this._plot.setPadding(0);
+  this._plot.update(innerSpace.serialize());
+  scale.update(this._plot.getInnerRect().serialize());
+  scale.setPadding(50);
 
   if (this._plot && this._plot.getX() && (labels = this._plot.getX().getLabels())) {
     labels.setContext(this._context);
@@ -1718,8 +1930,11 @@ B.Chart.method('reflow', function reflow(space) {
     labels.setHAlign(B.HAlign.fit);
     labels.setVAlign(B.VAlign.bottom);
     labels.setDirection(B.Direction.right);
+    labels.setScale(scale);
     labels.reflow(innerSpace);
     innerSpace.setHeight(labels.getTop() - innerSpace.getTop());
+    this._plot.update(innerSpace.serialize());
+    scale.update(this._plot.getInnerRect().serialize());
   }
 
   if (this._plot && this._plot.getY() && (labels = this._plot.getY().getLabels())) {
@@ -1730,10 +1945,12 @@ B.Chart.method('reflow', function reflow(space) {
     labels.setHAlign(B.HAlign.left);
     labels.setVAlign(B.VAlign.fit);
     labels.setDirection(B.Direction.up);
+    labels.setScale(scale);
     labels.reflow(innerSpace);
     innerSpace.setLeft(labels.getLeft() + labels.getWidth());
     innerSpace.setWidth(innerSpace.getWidth() - labels.getWidth());
-
+    this._plot.update(innerSpace.serialize());
+    scale.update(this._plot.getInnerRect().serialize());
     if (this._plot && this._plot.getX() && (labels = this._plot.getX().getLabels())) {
       //we have to reflow them again because Y labels have took some innerSpace and width of the plot and therefore width of X labels has changed
       //TODO however some optimizations can be done like flag to reposition the items instead of full reflow
@@ -1749,6 +1966,7 @@ B.Chart.method('reflow', function reflow(space) {
     grid.setTransformer(this._xTransformer);
     grid.setMin(this._xTransformer.getMinItem());
     grid.setMax(this._xTransformer.getMaxItem());
+    grid.setScale(scale);
     grid.setDirection(B.Direction.right);
   }
 
@@ -1756,6 +1974,7 @@ B.Chart.method('reflow', function reflow(space) {
     grid.setTransformer(this._yTransformer);
     grid.setMin(this._yTransformer.getMinItem());
     grid.setMax(this._yTransformer.getMaxItem());
+    grid.setScale(scale);
     grid.setDirection(B.Direction.up);
   }
 
