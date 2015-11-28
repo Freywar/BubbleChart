@@ -462,6 +462,101 @@ B.Border.method('apply', function(ctx) {
 
 //endregion
 
+//region B.Animatable
+
+/**
+ * @class Animatable value wrapper.
+ */
+B.Animatable = cls('B.Animatable', MObject);
+
+B.Animatable.property('initialized', {value: false});
+B.Animatable.property('currentValue', {value: null, get: true});
+B.Animatable.property('nextValue', {value: null, get: true});
+
+/**
+ * @property {*} value Animatable value.
+ */
+B.Animatable.property('value', {
+  get: function() {
+    return this._currentValue;
+  },
+  set: function(value) {
+    this._nextValue = value;
+    if (!this._initialized) {
+      this._currentValue = this._nextValue;
+      this._initialized = true;
+    }
+  }
+});
+
+/**
+ * @method Recalculate current value.
+ * @returns {boolean} True if value actually changed.
+ */
+B.Animatable.method('animate', function() {
+  if (this._currentValue === this._nextValue)
+    return false;
+
+  this._currentValue += (this._nextValue - this._currentValue) / 4; //TODO make it configurable and FPS-independable
+
+  if (Math.abs(this._currentValue - this._nextValue) < 0.001)
+    this._currentValue = this._nextValue;
+
+
+  if (this._currentValue === this._nextValue)
+    this._previousValue = this._currentValue;
+
+  return true;
+});
+
+/**
+ * @method Move to end immediately.
+ */
+B.Animatable.method('skip', function() {
+  this._currentValue = this._nextValue
+});
+
+
+/**
+ * @static Creates default getter to property treating animatable as primitive.
+ * @param {string} name Property name.
+ * @returns {Function}
+ */
+B.Animatable.getter = function(name) {
+  /**
+   * Default getter.
+   * @param {boolean} asObject Override primitive treatment.
+   */
+  return function(asObject) {
+    if (!(this['_' + name] instanceof  B.Animatable))
+      this['_' + name] = new B.Animatable({value: this['_' + name]});
+    return asObject ? this['_' + name] : this['_' + name].getValue();
+  }
+};
+
+/**
+ * @static Creates default setter to property treating animatable as primitive.
+ * @param {string} name Property name.
+ * @returns {Function}
+ */
+B.Animatable.setter = function(name) {
+  /**
+   * Default setter.
+   * @param {*} value Value.
+   * @param {boolean} asObject Override primitive treatment.
+   */
+  return function(value, asObject) {
+    if (!(this['_' + name] instanceof  B.Animatable))
+      this['_' + name] = new B.Animatable({value: this['_' + name]});
+    if (asObject)
+      this['_' + name] = !(value instanceof B.Animatable) ? new B.Animatable(value) : value;
+    else
+      this['_' + name].setValue(value)
+  }
+};
+
+//endregion
+
 //region B.Control
 /**
  * @class Basic control.
@@ -735,6 +830,7 @@ B.Control.method('_bindNative', function(node) {
   Utils.DOM.bind(node, 'mousedown', this._nativeHandler);
   Utils.DOM.bind(node, 'mouseup', this._nativeHandler);
   Utils.DOM.bind(node, Utils.isFF ? 'DOMMouseScroll' : 'mousewheel', this._nativeHandler);
+  Utils.AnimationFrame.add(this._nativeHandler);
   //TODO add other events
 });
 /**
@@ -764,7 +860,7 @@ B.Control.method('_unbindNative', function(node) {
     Utils.DOM.unbind(node, 'mousemove', this._nativeHandler);
     Utils.DOM.unbind(node, 'mousedown', this._nativeHandler);
     Utils.DOM.unbind(node, 'mouseup', this._nativeHandler);
-    Utils.DOM.unbind(node, Utils.isFF ? 'DOMMouseScroll' : 'mousewheel', this._nativehandler);
+    Utils.AnimationFrame.remove(this._nativeHandler);
   }
 });
 
@@ -792,12 +888,12 @@ B.Control.method('_check', function(x, y) {
  * Handlers should be defined in Control as _on<dom_event_name_in_UpperCamelCase> (_onMouseMove).
  */
 B.Control.method('_handle', function(args) {
-  if (!this._capture && (args.cancel || !this._check(args.x, args.y)))
+  if (!this._capture && (args.cancel || args.type !== 'animationframe' && !this._check(args.x, args.y)))
     return;
   var type = args.type;
   if (Utils.isFF && type === 'DOMMouseScroll')
     type = 'mousewheel';
-  var handlerName = '_on' + type.replace(/^(mouse)?(.*)$/, function(_, f, e) {
+  var handlerName = '_on' + type.replace(/^(mouse|animation)?(.*)$/, function(_, f, e) {
       return Utils.String.toUpperFirst(f || '') + Utils.String.toUpperFirst(e || '')
     });
   if (this[handlerName])

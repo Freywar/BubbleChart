@@ -351,6 +351,33 @@ var Utils = {
   isSafari: Object.prototype.toString.call(window.HTMLElement).indexOf('Constructor') > 0,
   isChrome: !!window.chrome && !(!!window.opera || navigator.userAgent.indexOf(' OPR/') >= 0),
   isIe: /*@cc_on!@*/false || !!document.documentMode,
+  AnimationFrame: {
+    handlers: (function() {
+      var result = [];
+      (function loop() {
+        (window.requestAnimationFrame ||
+        window.webkitRequestAnimationFrame ||
+        window.mozRequestAnimationFrame ||
+        window.oRequestAnimationFrame ||
+        window.msRequestAnimationFrame ||
+        function(callback, element) {
+          window.setTimeout(callback, 13);
+        })(function() {
+          result.forEach(function(f) {
+            f({type: 'animationframe', target: document.body});
+          });
+          loop();
+        });
+      })();
+      return result;
+    })(),
+    add: function(func) {
+      Utils.AnimationFrame.handlers && Utils.AnimationFrame.handlers.push(func);
+    },
+    remove: function(func) {
+      Utils.AnimationFrame.handlers && Utils.AnimationFrame.handlers.splice(Utils.AnimationFrame.handlers.indexOf(func), 1);
+    }
+  }
 };
 
 

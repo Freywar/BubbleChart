@@ -354,14 +354,20 @@ B.Slider.property('_buttonHovered', {value: false});
 B.Slider.property('_sliderHovered', {value: false});
 B.Slider.property('_sliderDragged', {value: false});
 
+B.Slider.property('_sliderAnimated', {value: false});
+B.Slider.property('_sliderAnimatedPrevTime', {value: null});
+
 B.Slider.method('_onMouseDown', function(args) {
   var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;
   var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
   var st = this.getInnerTop() + 16.5;
   this._sliderDragged = args.x >= start && args.x <= start + length && args.y >= st - 9 && args.y <= st + 9;
+  if (this._sliderDragged)
+    this._onMouseMove(args);
 });
 
 B.Slider.method('_onMouseMove', function(args) {
+
   var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;
   var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
 
@@ -391,6 +397,25 @@ B.Slider.method('_onMouseMove', function(args) {
 
 B.Slider.method('_onMouseUp', function(args) {
   this._sliderDragged = false;
+  if (this._buttonHovered) {
+    this._sliderAnimated = !this._sliderAnimated;
+    if (this._sliderAnimated && this._position === 1)
+      this._position = 0;
+    this._sliderAnimatedPrevTime = new Date();
+    args.repaint = true;
+  }
+});
+
+B.Slider.method('_onAnimationFrame', function(args) {
+  if (this._sliderAnimated) {
+    var time = new Date();
+    var delta = (time - this._sliderAnimatedPrevTime) * this._speed / 1000 / (this._ticks.length - 1);
+    this._position = Utils.Number.normalize(this._position + delta);
+    if (this._position === 1)
+      this._sliderAnimated = false;
+    this._sliderAnimatedPrevTime = time;
+    args.reflow = args.repaint = true;
+  }
 });
 
 /**
@@ -408,6 +433,10 @@ B.Slider.property('ticks', {
     }
   }
 });
+/**
+ * @property {number} speed Animation speed, ticks per second.
+ */
+B.Slider.property('speed', {value: 1, get: true, set: true});
 
 /**
  * @method Get path of closest tick before current position.
@@ -461,10 +490,25 @@ B.Slider.method('repaint', function() {
   this._context.fillStyle = this._buttonHovered ? '#888888' : '#BBBBBB';
 
   this._context.beginPath(); //TODO extract to Button class
-  this._context.moveTo(this.getInnerLeft(), this.getInnerTop());
-  this._context.lineTo(this.getInnerLeft() + 32, this.getInnerTop() + 16);
-  this._context.lineTo(this.getInnerLeft(), this.getInnerTop() + 32);
-  this._context.closePath();
+  if (!this._sliderAnimated) {
+    this._context.moveTo(this.getInnerLeft(), this.getInnerTop());
+    this._context.lineTo(this.getInnerLeft() + 32, this.getInnerTop() + 16);
+    this._context.lineTo(this.getInnerLeft(), this.getInnerTop() + 32);
+    this._context.closePath();
+  }
+  else {
+    this._context.moveTo(this.getInnerLeft(), this.getInnerTop());
+    this._context.lineTo(this.getInnerLeft(), this.getInnerTop() + 32);
+    this._context.lineTo(this.getInnerLeft() + 10, this.getInnerTop() + 32);
+    this._context.lineTo(this.getInnerLeft() + 10, this.getInnerTop());
+    this._context.lineTo(this.getInnerLeft(), this.getInnerTop());
+
+    this._context.moveTo(this.getInnerLeft() + 22, this.getInnerTop());
+    this._context.lineTo(this.getInnerLeft() + 22, this.getInnerTop() + 32);
+    this._context.lineTo(this.getInnerLeft() + 32, this.getInnerTop() + 32);
+    this._context.lineTo(this.getInnerLeft() + 32, this.getInnerTop());
+    this._context.lineTo(this.getInnerLeft() + 22, this.getInnerTop());
+  }
   this._context.fill();
 
 
@@ -1160,20 +1204,44 @@ B.Bubble.method('_onMouseMove', function(args) {
   args.cancel = args.cancel || isInside;
 });
 
+B.Bubble.method('_onAnimationFrame', function(args) {
+  var changed = !!(this.getLeft(true).animate() + this.getTop(true).animate() + this.getWidth(true).animate() + this.getHeight(true).animate());
+  args.repaint = args.repaint || changed;
+  if (changed && this._state === B.Bubble.States.waiting)
+    this._state = B.Bubble.States.appearing;
+  if (!changed && this._state === B.Bubble.States.appearing)
+    this._state = B.Bubble.States.normal;
+});
+
+/**
+ * @method Skip all animations.
+ */
+B.Bubble.method('skip', function() {
+  this.getLeft(true).skip();
+  this.getTop(true).skip();
+  this.getWidth(true).skip();
+  this.getHeight(true).skip();
+});
+
 /**
  * @property {String[]} path Path to data slice to which bubble is assigned.
  */
 B.Bubble.property('path', {value: null, get: true, set: true});
+
+B.Bubble.property('left', {get: B.Animatable.getter('left'), set: B.Animatable.setter('left')});
+B.Bubble.property('top', {get: B.Animatable.getter('top'), set: B.Animatable.setter('top')});
+B.Bubble.property('width', {get: B.Animatable.getter('width'), set: B.Animatable.setter('width')});
+B.Bubble.property('height', {get: B.Animatable.getter('height'), set: B.Animatable.setter('height')});
 
 /**
  * @property {number} x X-coordinate of center. Utilizes Left/Right properties so they form bounding rectangle.
  */
 B.Bubble.property('x', {
   get: function() {
-    return this._left + this.getR();
+    return this.getLeft() + this.getR();
   },
   set: function(value) {
-    this._left = value - this.getR();
+    this.setLeft(value - this.getWidth(true).getNextValue() / 2);
   }
 });
 
@@ -1182,10 +1250,10 @@ B.Bubble.property('x', {
  */
 B.Bubble.property('y', {
   get: function() {
-    return this._top + this.getR();
+    return this.getTop() + this.getR();
   },
   set: function(value) {
-    this._top = value - this.getR();
+    this.setTop(value - this.getWidth(true).getNextValue() / 2);
   }
 });
 
@@ -1194,11 +1262,13 @@ B.Bubble.property('y', {
  */
 B.Bubble.property('r', {
   get: function() {
-    return this._width / 2;
+    return this.getWidth() / 2;
   },
   set: function(value) {
-    var x = this.getX(), y = this.getY();
-    this._width = this._height = value * 2;
+    var x = this.getLeft(true).getNextValue() + this.getWidth(true).getNextValue() / 2,
+      y = this.getTop(true).getNextValue() + this.getWidth(true).getNextValue() / 2;
+    this.setWidth(value * 2);
+    this.setHeight(value * 2);
     this.setX(x);
     this.setY(y);
   }
@@ -1220,6 +1290,16 @@ B.Bubble.property('color', {
   }
 });
 
+B.Bubble.States = enumeration({
+  waiting: 'waiting',
+  appearing: 'appearing',
+  normal: 'normal',
+  disappearing: 'disappearing',
+  disappeared: 'disappeared'
+});
+
+B.Bubble.property('state', {value: B.Bubble.States.waiting, get: true, set: true});
+
 B.Bubble.method('reflow', function() {
 
 });
@@ -1229,7 +1309,7 @@ B.Bubble.method('repaint', function() {
     return;
 
   this._context.beginPath();
-  this._context.arc(this.getX(), this.getY(), this.getR() - this._border.getWidth() / 2, 0, 2 * Math.PI);
+  this._context.arc(this.getX(), this.getY(), Math.max(0, this.getR() - this._border.getWidth() / 2), 0, 2 * Math.PI);
   this._context.closePath();
 
   this._background.add(this._hovered ? -0.2 : 0).apply(this._context);//TODO make hovered effects configurable
@@ -1306,6 +1386,7 @@ B.BubbleLabel.method('reflow', function(space) {
   this._bubble.setY(this.getInnerTop() + this.getInnerHeight() / 2);
   this._bubble.setR(this._radius);
   this._bubble.setColor(this._color);
+  this._bubble.skip();
 
   this._label.setLeft(this.getInnerLeft() + this.getInnerWidth() / 2 - width / 2 + this._radius * 2);
   this._label.setTop(this.getInnerTop() + this.getInnerHeight() / 2 - this._label.getHeight() / 2);
@@ -1724,6 +1805,9 @@ B.Chart.method('_updateData', function() {
     if (this._yTransformer)
       bubble.setY(scale.y(1 - this._yTransformer.transformedItem(pathF, pathC, sliderO)));
 
+    if (bubble.getState() === B.Bubble.States.waiting)
+      bubble.skip();
+
     if (this._rTransformer)
       bubble.setR(50 * this._rTransformer.transformedItem(pathF, pathC, sliderO));
 
@@ -2052,7 +2136,7 @@ B.Chart.default = {
   plot: {
     border: {
       color: '#BBBBBB',
-      Width: 4,
+      Width: 4
     },
     background: '#EEEEEE',
     hAlign: B.HAlign.none,
