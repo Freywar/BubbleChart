@@ -125,6 +125,59 @@ function abstract(name) {
   throw Error((name || 'This') + ' is an abstract method.');
 }
 
+function MEvent() {
+  this._handlers = null;
+}
+MEvent.prototype.add = function(handler) {
+  this._handlers = this._handlers || [];
+  this._handlers.push(handler);
+};
+MEvent.prototype.remove = function(handler) {
+  if (this._handlers && ~this._handlers.indexOf(handler))
+    this._handlers.splice(this._handlers.indexOf(handler), 1);
+  if (!this._handlers.length)
+    this._handlers = null;
+};
+MEvent.prototype.clear = function(handler) {
+  this._handlers = null;
+};
+MEvent.prototype.invoke = function(sender, args) {
+  if (this._handlers)
+    for (var i = 0; i < this._handlers.length; i++)
+      this._handlers[i].handle(sender, args);
+};
+
+/// <summary> Event definition. Can attach delegates and call them when invoked. Must be defined in constructor and not in prototype. </summary>
+/// <param name="object" type="Object"> Instance. </param>
+/// <param name="name" type="String"> Event name. </param>
+/// <returns type="Event"> Event. </returns>
+function evt(obj, name) {
+  obj[name] = new MEvent()
+}
+
+function Delegate(func, context) {
+  this._func = func;
+  this._context = context;
+}
+var delegateP = Delegate.prototype;
+delegateP.handle = function(sender, args) {
+  this._func.call(this._context, sender, args);
+};
+delegateP = null;
+
+/// <summary> Delegate. Used with events, calls function in specified context. </summary>
+/// <param name="func" type="Function"> Function. </param>
+/// <param name="context" type="Object"> Context. </param>
+/// <returns type="Delegate"> Delegate. </returns>
+function delegate(obj, name) {
+  var result = function(sender, args) {
+    result.handle.apply(result, sender, args);
+  };
+  Delegate.call(result, obj[name], obj);
+  result.handle = Delegate.prototype.handle;
+  obj[name] = result;
+};
+
 /**
  * Alias definition. If applied to property, aliasises only setter and getter.
  * @param {Function} cls Class.
@@ -235,7 +288,7 @@ var Utils = {
      * @returns {string}
      */
     toUpperFirst: function(s) {
-      return s[0].toUpperCase() + s.slice(1)
+      return s && (s[0].toUpperCase() + s.slice(1));
     },
     /**
      * Make first letter lower.
@@ -243,7 +296,7 @@ var Utils = {
      * @returns {string}
      */
     toLowerFirst: function toLowerFirst(s) {
-      return s[0].toLowerCase() + s.slice(1)
+      return s && (s[0].toLowerCase() + s.slice(1));
     }
   },
   Number: {
@@ -401,7 +454,7 @@ MObject.prototype.update = function(options) {
       var ui = Utils.String.toUpperFirst(i);
       if (this['set' + ui])
         this['set' + ui](options[i]);
-      else if ((this[i] instanceof Event) && options[i] instanceof Delegate)
+      else if ((this[i] instanceof MEvent) && options[i] instanceof Delegate)
         this[i].add(options[i]);
       else throw Error('Unknown member ' + i);
     }

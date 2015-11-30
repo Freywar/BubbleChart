@@ -27,9 +27,9 @@
 
             var options = JSON.parse(JSON.stringify(B.Chart.default));
 
-            options.plot.bubbles = [];
+            options.bubbles = [];
             for (var i = 0; i < bubblesCount; i++)
-                options.plot.bubbles.push({path: [i]});
+                options.bubbles.push({path: [i]});
 
             options.slider.ticks = [];
             for (var i = 0; i < yearsCount; i++)
@@ -55,7 +55,7 @@
                         r: 'Radius',
                         c: 'Color'
                     },
-                    options.plot.bubbles.map(function(a, i) {
+                    options.bubbles.map(function(a, i) {
                         return 'Bubble ' + i
                     }),
                     options.slider.ticks.map(function(a, i) {

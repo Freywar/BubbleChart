@@ -348,7 +348,10 @@ B.SliderTick.property('path', {value: null, get: true, set: true});
 /**
  * @class B.Slider Slider to travel between slices in one of data dimensions.
  */
-B.Slider = cls('B.Slider', B.Control);
+B.Slider = cls('B.Slider', B.Control, function(options) {
+  evt(this, 'positionChange');
+  B.Slider.base.constructor.apply(this, arguments);
+});
 
 B.Slider.property('_buttonHovered', {value: false});
 B.Slider.property('_sliderHovered', {value: false});
@@ -375,13 +378,18 @@ B.Slider.method('_onMouseMove', function(args) {
 
     var sl = start + length * this._position;
     var st = this.getInnerTop() + 16.5;
-    var capture = false;
+    var capture = false, changed = false;
     if (args.x >= this.getInnerLeft() && args.x <= this.getInnerLeft() + 32 && args.y >= this.getInnerTop() && args.y <= this.getInnerTop() + 32)
-      args.repaint = args.repaint || (this._buttonHovered !== (capture = this._buttonHovered = true));
+      changed = changed || (this._buttonHovered !== (capture = this._buttonHovered = true));
     else
-      args.repaint = args.repaint || (this._buttonHovered !== (capture = this._buttonHovered = false));
-    args.repaint = args.repaint || (this._sliderHovered !== (capture = capture || ( this._sliderHovered = args.x >= sl - 9 && args.x <= sl + 9 && args.y >= st - 9 && args.y <= st + 9)));
+      changed = changed || (this._buttonHovered !== (capture = this._buttonHovered = false));
+    changed = changed || (this._sliderHovered !== (capture = capture || ( this._sliderHovered = args.x >= sl - 9 && args.x <= sl + 9 && args.y >= st - 9 && args.y <= st + 9)));
     this._capture = capture;
+    if (changed)
+      this.positionChange.invoke(this, {
+        position: this._position,
+        animation: this._sliderAnimated
+      });
   }
   else {
     this._position = Utils.Number.normalize((args.x - start) / length);
@@ -390,8 +398,10 @@ B.Slider.method('_onMouseMove', function(args) {
     if (this.offset() > 0.97)
       this._position = Math.ceil((this._position * (this._ticks.length - 1))) / (this._ticks.length - 1);
 
-    args.repaint = true;
-    args.reflow = true;//TODO maybe implement some invokable events mechanism and use it
+    this.positionChange.invoke(this, {
+      position: this._position,
+      animation: this._sliderAnimated
+    });
   }
 });
 
@@ -402,7 +412,10 @@ B.Slider.method('_onMouseUp', function(args) {
     if (this._sliderAnimated && this._position === 1)
       this._position = 0;
     this._sliderAnimatedPrevTime = new Date();
-    args.repaint = true;
+    this.positionChange.invoke(this, {
+      position: this._position,
+      animation: this._sliderAnimated
+    });
   }
 });
 
@@ -414,14 +427,25 @@ B.Slider.method('_onAnimationFrame', function(args) {
     if (this._position === 1)
       this._sliderAnimated = false;
     this._sliderAnimatedPrevTime = time;
-    args.reflow = args.repaint = true;
+    this.positionChange.invoke(this, {
+      position: this._position,
+      animation: this._sliderAnimated
+    });
   }
 });
 
 /**
  * @property {number} position Position between slices. 0 - first slice, 1 - last slice, all intermediate values are supported.
  */
-B.Slider.property('position', {value: 0, get: true, set: true});
+B.Slider.property('position', {
+  value: 0, get: true, set: function(value) {
+    this._position = value;
+    this.positionChange.invoke(this, {
+      position: this._position,
+      animation: this._sliderAnimated
+    });
+  }
+});
 B.Slider.property('ticks', {
   value: null, get: true, set: function(value) {
     if (this._ticks === value)
@@ -1190,7 +1214,12 @@ B.Axis.method('repaint', function() {
 /**
  * @class B.Bubble Bubble.
  */
-B.Bubble = cls('B.Bubble', B.Control);
+B.Bubble = cls('B.Bubble', B.Control, function(options) {
+  evt(this, 'hover');
+  evt(this, 'dblClick');
+  evt(this, 'stateChange');
+  B.Bubble.base.constructor.apply(this, arguments);
+});
 
 B.Bubble.method('_check', function(x, y) {
   x -= this.getX();
@@ -1200,17 +1229,30 @@ B.Bubble.method('_check', function(x, y) {
 
 B.Bubble.method('_onMouseMove', function(args) {
   var isInside = this._check(args.x, args.y);
-  args.repaint = (this._hovered !== (this._hovered = this._capture = (isInside && !args.cancel)));
+  var changed = (this._hovered !== (this._hovered = this._capture = (isInside && !args.cancel)));
   args.cancel = args.cancel || isInside;
+  if (changed)
+    this.hover.invoke(this, Utils.extend({
+      hover: isInside
+    }, args))
+});
+
+B.Bubble.method('_onDblClick', function(args) {
+  this.dblClick.invoke(this, args);
 });
 
 B.Bubble.method('_onAnimationFrame', function(args) {
   var changed = !!(this.getLeft(true).animate() + this.getTop(true).animate() + this.getWidth(true).animate() + this.getHeight(true).animate());
-  args.repaint = args.repaint || changed;
+
+  var state = this._state;
   if (changed && this._state === B.Bubble.States.waiting)
     this._state = B.Bubble.States.appearing;
   if (!changed && this._state === B.Bubble.States.appearing)
     this._state = B.Bubble.States.normal;
+  if (changed)
+    this.invalidated.invoke(this);
+  if (state !== this._state)
+    this.stateChange.invoke(this, {state: this._state});
 });
 
 /**
@@ -1298,7 +1340,12 @@ B.Bubble.States = enumeration({
   disappeared: 'disappeared'
 });
 
-B.Bubble.property('state', {value: B.Bubble.States.waiting, get: true, set: true});
+B.Bubble.property('state', {
+  value: B.Bubble.States.waiting, get: true, set: function(value) {
+    this._state = value;
+    this.stateChange.invoke(this, {state: value});
+  }
+});
 
 B.Bubble.method('reflow', function() {
 
@@ -1609,25 +1656,11 @@ B.ValueLegend.method('reflow', function(space) {
  * @class Plot area.
  */
 B.Plot = cls('B.Plot', B.Control, function(options) {
-  B.Plot.base.constructor.apply(this, arguments)
+  evt(this, 'scaleChange');
+  B.Plot.base.constructor.apply(this, arguments);
   this._scale = new B.Scale();
 });
 
-/**
- * @property {B.Bubble[]} Bubbles to show on the plot.
- */
-B.Plot.property('bubbles', {
-  value: null, get: true, set: function(value) {
-    if (this._bubbles !== value) {
-      this._bubbles = [];
-      if (value) {
-        for (var i = 0; i < value.length; i++) {
-          this._bubbles.push(new B.Bubble(value[i]));
-        }
-      }
-    }
-  }
-});
 /**
  * @property {B.Axis} x X-axis.
  */
@@ -1639,17 +1672,10 @@ B.Plot.property('y', {value: null, get: true, set: true, type: B.Axis});
 
 B.Plot.property('scale', {get: true});
 
-B.Plot.method('_handle', function(args) {
-  if (this._bubbles)
-    for (var i = this._bubbles.length - 1; i >= 0; i--)
-      this._bubbles[i]._handle(args);
-  B.Plot.base._handle.call(this, args);
-});
-
 B.Plot.method('_onMouseWheel', function(event) {
   var delta = (Utils.isFF ? -event.native.detail : event.native.wheelDelta) > 0 ? 0.1 : -0.1;
   this._scale.scaleBy(delta, event.x, event.y);
-  event.repaint = event.reflow = true;
+  this.scaleChange.invoke(this);
 });
 
 B.Plot.property('_previousDragEvent');
@@ -1662,7 +1688,7 @@ B.Plot.method('_onMouseMove', function(event) {
   if (this._previousDragEvent) {
     this._scale.moveBy(event.x - this._previousDragEvent.x, event.y - this._previousDragEvent.y);
     this._previousDragEvent = event;
-    event.repaint = event.reflow = true;
+    this.scaleChange.invoke(this);
   }
 });
 
@@ -1713,9 +1739,6 @@ B.Plot.method('repaint', function() {
   if (this._y)
     this._y.repaint();
 
-  if (this._bubbles)
-    for (var i = 0; i < this._bubbles.length; i++)
-      this._bubbles[i].repaint();
   this._unclip();
 });
 
@@ -1724,6 +1747,10 @@ B.Plot.method('repaint', function() {
 //region B.Chart
 
 B.Chart = cls('B.Chart', B.Control, function(options) {
+  delegate(this, '_onSliderPositionChange');
+  delegate(this, '_onPlotScaleChange');
+  delegate(this, '_onBubbleHover');
+  delegate(this, '_onChildInvalidated');
   B.Chart.base.constructor.apply(this, arguments);
 });
 
@@ -1760,31 +1787,103 @@ B.Chart.property('yTransformer', {value: null, get: true, set: true, type: B.Tra
 B.Chart.property('rTransformer', {value: null, get: true, set: true, type: B.Transformer});
 B.Chart.property('cTransformer', {value: null, get: true, set: true, type: B.ColorTransformer});
 
+/**
+ * @property {B.Bubble[]} Bubbles to show on the plot.
+ */
+B.Chart.property('bubbles', {
+  value: null, get: true, set: function(value) {
+    if (this._bubbles !== value) {
+      if (this._bubbles)
+        for (var i = 0; i < value.length; i++) {
+          this._bubbles[i].hover.remove(this._onBubbleHover);
+          this._bubbles[i].invalidated.remove(this._onChildInvalidated);
+        }
+
+      this._bubbles = [];
+      if (value) {
+        for (var i = 0; i < value.length; i++) {
+          this._bubbles.push(new B.Bubble(value[i]));
+          this._bubbles[i].hover.add(this._onBubbleHover);
+          this._bubbles[i].invalidated.add(this._onChildInvalidated);
+        }
+      }
+    }
+  }
+
+});
+
 B.Chart.property('title', {value: null, get: true, set: true, type: B.Label});
-B.Chart.property('plot', {value: null, get: true, set: true, type: B.Plot});
-B.Chart.property('slider', {value: null, get: true, set: true, type: B.Slider});
+B.Chart.property('plot', {
+  value: null, get: true, set: function(value) {
+    if (this._plot !== value) {
+      if (this._plot)
+        this._plot.scaleChange.remove(this._onPlotScaleChange);
+      if (!(value instanceof B.Plot))
+        value = new B.Plot(value);
+      this._plot = value;
+      if (this._plot)
+        this._plot.scaleChange.add(this._onPlotScaleChange);
+    }
+
+  }, type: B.Plot
+});
+B.Chart.property('slider', {
+  value: null, get: true, set: function(value) {
+    if (this._slider)
+      this._slider.positionChange.remove(this._onSliderPositionChange);
+    if (!(value instanceof  B.Slider))
+      value = new B.Slider(value);
+    this._slider = value;
+    if (this._slider)
+      this._slider.positionChange.add(this._onSliderPositionChange)
+  }, type: B.Slider
+});
 B.Chart.property('bubblesLegend', {value: null, get: true, set: true, type: B.Legend});
 B.Chart.property('colorLegend', {value: null, get: true, set: true, type: B.ValueLegend});
 B.Chart.property('radiusLegend', {value: null, get: true, set: true, type: B.ValueLegend});
 B.Chart.property('tooltip', {value: null, get: true, set: true, type: B.Tooltip});
 
+B.Chart.method('_onSliderPositionChange', function(sender, args) {
+  this._updateData(args.animation);
+  this.repaint();
+});
+
+B.Chart.method('_onPlotScaleChange', function(sender, args) {
+  this._plot.reflow(this._plot.getOuterRect());
+  this._updateData(true);
+  this.repaint();
+});
+
+B.Chart.method('_onBubbleHover', function(sender, args) {
+  if (sender !== this._hoveredBubble || !args.hover) {
+    this._hoveredBubble = args.hover ? sender : null;
+    this._reflowTooltip();
+    this.invalidate(false, true);
+  }
+});
+
+B.Chart.method('_onChildInvalidated', function(sender, args) {
+  this.invalidate(false, true);
+});
+
 B.Chart.method('_handle', function(args) {
+  if (this._bubbles)
+    for (var i = this._bubbles.length - 1; i >= 0; i--)
+      this._bubbles[i]._handle(args);
+
   if (this._plot)
     this._plot._handle(args);
   if (this._slider)
     this._slider._handle(args);
 
-  if (args.reflow || args.repaint)
-    this._reflowTooltip();
-
   this._invalidate(args.reflow, args.repaint);
 });
 
-B.Chart.method('_updateData', function() {
+B.Chart.method('_updateData', function(isAnimation) {
   if (!this._plot)
     return;
 
-  var bubbles = this._plot.getBubbles();
+  var bubbles = this._bubbles;
   if (!bubbles)
     return;
 
@@ -1805,7 +1904,7 @@ B.Chart.method('_updateData', function() {
     if (this._yTransformer)
       bubble.setY(scale.y(1 - this._yTransformer.transformedItem(pathF, pathC, sliderO)));
 
-    if (bubble.getState() === B.Bubble.States.waiting)
+    if (!isAnimation && bubble.getState() === B.Bubble.States.waiting)
       bubble.skip();
 
     if (this._rTransformer)
@@ -1816,7 +1915,8 @@ B.Chart.method('_updateData', function() {
     else
       bubble.setColor(this._palette[i % this._palette.length]);
 
-    //TODO use relative coordinates here and transform them into absolute on Plot reflow
+    if (isAnimation)
+      bubble.skip();
   }
 });
 
@@ -1824,27 +1924,17 @@ B.Chart.property('_hoveredBubble');
 B.Chart.method('_reflowTooltip', function() {
   if (!this._plot || !this._tooltip)
     return;
-
-  var hoveredBubble = this._plot.getBubbles().filter(function(b) {
-    return b.getHovered()
-  })[0];
-  if (hoveredBubble && hoveredBubble !== this._hoveredBubble) {
-
-    var bubbles = this._plot.getBubbles();
-    if (!bubbles)
-      return;
-
+  if (this._hoveredBubble) {
     var sliderF = this._slider.floor();
     var sliderO = this._slider.offset();
     var sliderC = this._slider.ceil();
-    var pathF = hoveredBubble.getPath().concat(sliderF),
-      pathC = hoveredBubble.getPath().concat(sliderC),
-      name = this._data.name([''].concat(hoveredBubble.getPath())),
+    var pathF = this._hoveredBubble.getPath().concat(sliderF),
+      pathC = this._hoveredBubble.getPath().concat(sliderC),
+      name = this._data.name([''].concat(this._hoveredBubble.getPath())),
       nameF = this._data.name([''].concat(pathF)),
       nameC = this._data.name([''].concat(pathC));
 
     var lines = [name + ', ' + (nameF === nameC ? nameF : nameF + ' - ' + nameC)], value;
-
 
     if (this._xTransformer)
       lines.push(this._xTransformer.name() + ': ' + ((value = this._xTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
@@ -1860,19 +1950,16 @@ B.Chart.method('_reflowTooltip', function() {
 
     this._tooltip.setText(Utils.Array.unique(lines).join('\n'));
 
+    this._tooltip.setContext(this._context);
+    this._tooltip.setVisible(true);
+    this._tooltip.setX(this._hoveredBubble.getX());
+    this._tooltip.setY(this._hoveredBubble.getY());
+    this._tooltip.setOffset(this._hoveredBubble.getR());
+    this._tooltip.getBorder().setColor(this._hoveredBubble.getColor());
+    this._tooltip.reflow(this._plot.getInnerRect());
   }
-
-  this._hoveredBubble = hoveredBubble;
-
-  this._tooltip.setContext(this._context);
-  this._tooltip.setVisible(!!hoveredBubble);
-  if (hoveredBubble) {
-    this._tooltip.setX(hoveredBubble.getX());
-    this._tooltip.setY(hoveredBubble.getY());
-    this._tooltip.setOffset(hoveredBubble.getR());
-    this._tooltip.getBorder().setColor(hoveredBubble.getColor());
-  }
-  this._tooltip.reflow(this._plot.getInnerRect());
+  else
+    this._tooltip.setVisible(false);
 });
 
 B.Chart.method('reflow', function reflow(space) {
@@ -1950,8 +2037,8 @@ B.Chart.method('reflow', function reflow(space) {
     legendHeight = Math.max(this._colorLegend.getHeight(), legendHeight);
   }
 
-  if (!(this._cTransformer && this._cTransformer.getPath()) && this._bubblesLegend && this._plot && this._plot.getBubbles()) {
-    var bubbles = this._plot.getBubbles(), items = [];
+  if (!(this._cTransformer && this._cTransformer.getPath()) && this._bubblesLegend && this._plot && this._bubbles) {
+    var bubbles = this._bubbles, items = [];
     for (i = 0; i < bubbles.length; i++)
       items.push({
         text: this._data.name([''].concat(bubbles[i].getPath())),
@@ -2096,7 +2183,7 @@ B.Chart.method('repaint', function repaint() {
   if (this._cTransformer && this._cTransformer.getPath() && this._colorLegend)
     this._colorLegend.repaint();
 
-  if (!(this._cTransformer && this._cTransformer.getPath()) && this._bubblesLegend && this._plot && this._plot.getBubbles())
+  if (!(this._cTransformer && this._cTransformer.getPath()) && this._bubblesLegend && this._plot && this._bubbles)
     this._bubblesLegend.repaint();
 
   var title;
@@ -2115,11 +2202,20 @@ B.Chart.method('repaint', function repaint() {
 
   //TODO think about moving this code into Plot class
 
-  if (this._plot)
+  if (this._plot) {
+    this._plot._clip(); //TODO remove cheating, maybe events? however storing bubbles inside plot was worse
     this._plot.repaint();
+  }
+
+  if (this._bubbles)
+    for (var i = 0; i < this._bubbles.length; i++)
+      this._bubbles[i].repaint();
 
   if (this._tooltip)
     this._tooltip.repaint();
+
+  if (this._plot)
+    this._plot._unclip();
 });
 
 B.Chart.default = {
@@ -2133,6 +2229,8 @@ B.Chart.default = {
   cTransformer: {},
   rTransformer: {min: 0.1},
 
+  bubbles: [],
+
   plot: {
     border: {
       color: '#BBBBBB',
@@ -2141,7 +2239,7 @@ B.Chart.default = {
     background: '#EEEEEE',
     hAlign: B.HAlign.none,
     vAlign: B.VAlign.none,
-    bubbles: [],
+
     x: {
       title: {text: 'X', font: {color: '#888888'}},
       grid: {

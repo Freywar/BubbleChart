@@ -561,7 +561,10 @@ B.Animatable.setter = function(name) {
 /**
  * @class Basic control.
  */
-B.Control = cls('B.Control', B.Rect);
+B.Control = cls('B.Control', B.Rect, function(options) {
+  evt(this, 'invalidated'); //TODO think of consistent name
+  B.Control.base.constructor.apply(this, arguments);
+});
 
 /**
  * @property {CanvasRenderingContext2D} context Context in which rendering is to be done.
@@ -792,7 +795,7 @@ B.Control.method('repaint', function repaint() {
   //TODO add border radius support
 });
 
-B.Control.property('_invalidateTimeout', {value: null});
+B.Control.property('_invalidateArgs', {value: null});
 /**
  * @method Parameterized reflow/repaint call.
  * @param {boolean} reflow Perform reflow.
@@ -800,11 +803,11 @@ B.Control.property('_invalidateTimeout', {value: null});
 
  */
 B.Control.method('_invalidate', function _invalidate(reflow, repaint) {
-  if (reflow)
+  if (reflow || this._invalidateArgs && this._invalidateArgs.reflow)
     this.reflow(this);
-  if (repaint)
+  if (repaint || this._invalidateArgs && this._invalidateArgs.repaint)
     this.repaint();
-  this._invalidateTimeout = null;
+  this._invalidateArgs = null;
 });
 /**
  * @method Asynchronous reflow/repaint call. Ensures that no matter how much times it was called during one stream, actual reflow/repaint will be done once.
@@ -813,9 +816,11 @@ B.Control.method('_invalidate', function _invalidate(reflow, repaint) {
 
  */
 B.Control.method('invalidate', function(reflow, repaint) {
-  if (this._invalidateTimeout)
-    return;
-  this._invalidateTimeout = setTimeout(this._invalidate.bind(this, reflow, repaint));
+  if (!this._invalidateArgs)
+    setTimeout(this._invalidate.bind(this));
+  this._invalidateArgs = this._invalidateArgs || {};
+  this._invalidateArgs.reflow = this._invalidateArgs.reflow || reflow;
+  this._invalidateArgs.repaint = this._invalidateArgs.repaint || repaint;
 });
 
 B.Control.property('nativeHandler');
@@ -829,6 +834,8 @@ B.Control.method('_bindNative', function(node) {
   Utils.DOM.bind(node, 'mousemove', this._nativeHandler);
   Utils.DOM.bind(node, 'mousedown', this._nativeHandler);
   Utils.DOM.bind(node, 'mouseup', this._nativeHandler);
+  Utils.DOM.bind(node, 'click', this._nativeHandler);
+  Utils.DOM.bind(node, 'dblclick', this._nativeHandler);
   Utils.DOM.bind(node, Utils.isFF ? 'DOMMouseScroll' : 'mousewheel', this._nativeHandler);
   Utils.AnimationFrame.add(this._nativeHandler);
   //TODO add other events
@@ -846,7 +853,9 @@ B.Control.method('_handleNative', function(e) {
     cancel: false,
     reflow: false,
     repaint: false,
-    native: e
+    native: e,
+    shiftKey: e.shiftKey,
+    ctrlKey: e.ctrlKey
   };
   this._handle(args);
 });
@@ -860,6 +869,9 @@ B.Control.method('_unbindNative', function(node) {
     Utils.DOM.unbind(node, 'mousemove', this._nativeHandler);
     Utils.DOM.unbind(node, 'mousedown', this._nativeHandler);
     Utils.DOM.unbind(node, 'mouseup', this._nativeHandler);
+    Utils.DOM.unbind(node, 'click', this._nativeHandler);
+    Utils.DOM.unbind(node, 'dblclick', this._nativeHandler);
+    Utils.DOM.unbind(node, Utils.isFF ? 'DOMMouseScroll' : 'mousewheel', this._nativeHandler);
     Utils.AnimationFrame.remove(this._nativeHandler);
   }
 });
@@ -893,7 +905,7 @@ B.Control.method('_handle', function(args) {
   var type = args.type;
   if (Utils.isFF && type === 'DOMMouseScroll')
     type = 'mousewheel';
-  var handlerName = '_on' + type.replace(/^(mouse|animation)?(.*)$/, function(_, f, e) {
+  var handlerName = '_on' + type.replace(/^(mouse|animation|dbl|click)?(.*)$/, function(_, f, e) {
       return Utils.String.toUpperFirst(f || '') + Utils.String.toUpperFirst(e || '')
     });
   if (this[handlerName])
