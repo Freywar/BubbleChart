@@ -598,7 +598,7 @@ B.Control.property('padding', {value: 4, get: true, set: true, type: B.Spacing})
 /**
  * @property {B.Color} background Background color
  */
-B.Control.property('background', {value: '#FFFFFF', get: true, set: true, type: B.Color});
+B.Control.property('background', {value: null, get: true, set: true, type: B.Color});
 
 /**
  * @property {B.Border} Border. Radius is added to padding, so children controls are not overlapped by border curves.
@@ -846,10 +846,11 @@ B.Control.method('_bindNative', function(node) {
 
  */
 B.Control.method('_handleNative', function(e) {
+  var rect = e.target.getBoundingClientRect();
   var args = {
     type: e.type,
-    x: e.pageX - e.target.offsetLeft,
-    y: e.pageY - e.target.offsetTop,
+    x: e.pageX - rect.left,
+    y: e.pageY - rect.top,
     cancel: false,
     reflow: false,
     repaint: false,
