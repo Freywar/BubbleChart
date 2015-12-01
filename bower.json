@@ -1,0 +1,20 @@
+{
+  "name": "BubbleChart",
+  "version": "0.1.0",
+  "homepage": "https://github.com/Freywar/BubbleChart",
+  "authors": [
+    "Freywar"
+  ],
+  "description": "Bubble chart",
+  "main": "dist/bubblechart.min.js",
+  "moduleType": [
+    "globals"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "src",
+    "dist/*.html"
+  ]
+}
