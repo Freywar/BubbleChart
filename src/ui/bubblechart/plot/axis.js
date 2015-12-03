@@ -17,7 +17,7 @@ B.Axis.property('grid', {value: null, get: true, set: true, type: B.LineCollecti
 B.Axis.property('labels', {value: null, get: true, set: true, type: B.LabelCollection});
 
 B.Axis.method('reflow', function(space) {
-  if (!this._context || !this._visible)
+  if (this._assertReflow())
     return;
 
   B.Axis.base.reflow.apply(this, arguments);
@@ -30,8 +30,9 @@ B.Axis.method('reflow', function(space) {
 });
 
 B.Axis.method('repaint', function() {
-  if (!this._context || !this._visible)
+  if (this._assertRepaint())
     return;
+
   if (this._grid)
     this._grid.repaint();
 });
