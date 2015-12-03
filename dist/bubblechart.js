@@ -497,7 +497,7 @@ window.Utils = {
  * @namespace Main chart's namespace.
  */
 window.B = namespace();
-
+window.delegate = delegate;
 //endregion
 //region src/ui/base/primitives/enum.js
 /**
@@ -1179,6 +1179,22 @@ B.Control.property('innerVCenter', {
   }
 });
 
+/**
+ * @method _assertReflow
+ * Check if all required properties are set, if not - sets sizes to zero according to alignment.
+ * @param {boolean} failed Some additional checks are failed.
+ * @returns {boolean} Not all required properties are set.
+ */
+B.Control.method('_assertReflow', function(failed) {
+  if (!this._context || !this._visible || failed) {
+    if (this._hAlign !== B.HAlign.none)
+      this._width = 0;
+    if (this._vAlign !== B.VAlign.none)
+      this._height = 0;
+    return true;
+  }
+  return false;
+});
 
 /**
  * @method Recalculate all internal values after any property change.
@@ -1244,13 +1260,23 @@ B.Control.method('_unclip', function() {
   }
 });
 
+/**
+ * @method _assertRepaint
+ * Check if all required properties are set.
+ * @param {boolean} failed Some additional checks are failed.
+ * @returns {boolean} Not all required properties are set.
+ */
+B.Control.method('_assertRepaint', function(failed) {
+  return !this._context || !this._visible || !this._width || !this._height || failed;
+});
 
 /**
  * @method Render current state on current context property.
  */
 B.Control.method('repaint', function repaint() {
-  if (!this._context || !this._visible)
+  if (this._assertRepaint())
     return;
+
   this._background.apply(this._context);
   this._context.fillRect(
     Math.round(this._left + this._margin.getLeft() + this._border.getWidth() / 2),
@@ -1417,18 +1443,8 @@ B.Label.property('font', {value: null, get: true, set: true, type: B.Font});
 B.Label.property('textAlign', {value: B.HAlign.left, get: true, set: true});
 
 B.Label.method('reflow', function reflow(space) {
-  if (!this._context || !this._visible)
+  if (this._assertReflow(!this._text))
     return;
-
-  if (!this._text) {
-    if (this._hAlign !== B.HAlign.none) {
-      this._width = 0;
-    }
-    if (this._vAlign !== B.VAlign.none) {
-      this._height = 0;
-    }
-    return;
-  }
 
   if (this._hAlign !== B.HAlign.none) {
     this._width = space.getWidth();
@@ -1550,7 +1566,7 @@ B.Label.method('_repaintText', function() {
 });
 
 B.Label.method('repaint', function repaint() {
-  if (!this._context || !this._visible || !this._text)
+  if (this._assertRepaint(!this._text))
     return;
 
   B.Label.base.repaint.apply(this, arguments);
@@ -1723,6 +1739,8 @@ B.Tooltip.method('_calcPosition', function(top, left, arrowOffset, minOffset, sp
 });
 
 B.Tooltip.method('reflow', function(space) {
+  if (this._assertReflow(!this._text))
+    return;
 
   this._hAlign = B.HAlign.auto;
   this._vAlign = B.VAlign.auto;
@@ -1813,7 +1831,7 @@ B.Tooltip.method('reflow', function(space) {
 B.Tooltip.property('data', {value: null});
 
 B.Tooltip.method('repaint', function() {
-  if (!this._context || !this._visible)
+  if (this._assertRepaint(!this._text))
     return;
 
   var side = this._data.side,
@@ -2017,7 +2035,7 @@ B.Bubble.method('reflow', function() {
 });
 
 B.Bubble.method('repaint', function() {
-  if (!this._context || !this._visible || !this.getR())
+  if (this._assertRepaint(!this.getR()))
     return;
 
   this._context.beginPath();
@@ -2782,11 +2800,13 @@ B.ControlCollection.method('_realignChildren', function() {
   }
 });
 
-B.ControlCollection.method('reflow', function(space) {
+B.ControlCollection.method('reflow', function(space, realignOnly) {
   if (!this._context || !this._visible)
     return;
-  this._reflowChildren(space); //first we have to recursively calculate all items sizes in all subcollections and calculate own size depending on them
-  this._reflowSelf(space, true); //then we can apply self alignment and recursively align subcollections with self
+  if (!realignOnly) {
+    this._reflowChildren(space); //first we have to recursively calculate all items sizes in all subcollections and calculate own size depending on them
+    this._reflowSelf(space, true); //then we can apply self alignment and recursively align subcollections with self
+  }
   this._realignChildren(); //finally we can set each item's position depending on self position and transformed value
 });
 
@@ -2905,8 +2925,10 @@ B.LabelCollection.method('_hideOverlappingChildren', function(left, right) {
   for (var i = 0; i < this._items.length; i++) {
     if (this._items[i].getLeft() < left || this._items[i].getLeft() + this._items[i].getWidth() > right)
       this._items[i].setVisible(false);
-    else
+    else {
+      this._items[i].setVisible(true);
       left = this._items[i].getLeft() + this._items[i].getWidth();
+    }
   }
   for (i = 0; i < this._items.length - 1; i++) {
     if (this._subcollections && this._subcollections[i]) {
@@ -2921,11 +2943,14 @@ B.LabelCollection.method('_hideOverlappingChildren', function(left, right) {
 });
 
 B.LabelCollection.method('reflow', function() {
-  B.LabelCollection.base.reflow.apply(this, arguments)
+  B.LabelCollection.base.reflow.apply(this, arguments);
 
   if (this._items && this._direction === B.Direction.right) {
-    this._items[0].setLeft(Math.max(this._items[0].getLeft(), this.getInnerLeft()));
-    this._items[this._items.length - 1].setLeft(Math.min(this._items[this._items.length - 1].getLeft(), this.getInnerLeft() + this.getInnerWidth() - this._items[this._items.length - 1].getWidth()));
+    var first = this._items[0], last = this._items[this._items.length - 1];
+    if (first.getRight() > this.getInnerLeft())
+      first.setLeft(Math.max(first.getLeft(), this.getInnerLeft()));
+    if (last.getRight() < this.getInnerRight())
+      last.setRight(Math.min(last.getRight(), this.getInnerRight()));
     this._hideOverlappingChildren(this.getInnerLeft(), this.getInnerLeft() + this.getInnerWidth());
   }
 });
@@ -2950,7 +2975,7 @@ B.Axis.property('grid', {value: null, get: true, set: true, type: B.LineCollecti
 B.Axis.property('labels', {value: null, get: true, set: true, type: B.LabelCollection});
 
 B.Axis.method('reflow', function(space) {
-  if (!this._context || !this._visible)
+  if (this._assertReflow())
     return;
 
   B.Axis.base.reflow.apply(this, arguments);
@@ -2963,8 +2988,9 @@ B.Axis.method('reflow', function(space) {
 });
 
 B.Axis.method('repaint', function() {
-  if (!this._context || !this._visible)
+  if (this._assertRepaint())
     return;
+
   if (this._grid)
     this._grid.repaint();
 });
@@ -3016,7 +3042,7 @@ B.Plot.method('_onMouseUp', function(event) {
 });
 
 B.Plot.method('reflow', function(space) {
-  if (!this._context || !this._visible)
+  if (this._assertReflow())
     return;
 
   if (this._x && this._y && this._x.getGrid() && this._y.getGrid())
@@ -3047,8 +3073,9 @@ B.Plot.method('reflow', function(space) {
 });
 
 B.Plot.method('repaint', function() {
-  if (!this._context || !this._visible)
+  if (this._assertRepaint())
     return;
+
   B.Plot.base.repaint.apply(this, arguments);
 
   this._clip();
@@ -3092,7 +3119,7 @@ B.BubbleLabel.property('radius', {value: 8, get: true, set: true});
 B.BubbleLabel.property('color', {value: '#888888', get: true, set: true, type: B.Color});
 
 B.BubbleLabel.method('reflow', function(space) {
-  if (!this._context || !this._visible)
+  if (this._assertReflow(!this._text ||!this._radius))
     return;
 
   this._label.setContext(this._context);
@@ -3131,6 +3158,8 @@ B.BubbleLabel.method('reflow', function(space) {
 });
 
 B.BubbleLabel.method('repaint', function() {
+  if (this._assertRepaint(!this._text ||!this._radius))
+    return;
   B.BubbleLabel.base.repaint.apply(this, arguments);
   this._bubble.repaint();
   this._label.repaint();
@@ -3170,6 +3199,8 @@ B.Legend.property('items', {
 B.Legend.property('font', {value: null, get: true, set: true, type: B.Font});
 
 B.Legend.method('reflow', function(space) {
+  if (this._assertReflow(!this._items || !this._items.length))
+    return;
 
   for (var i = 0; i < this._items.length; i++) {
     this._items[i].setContext(this._context);
@@ -3271,6 +3302,8 @@ B.Legend.method('reflow', function(space) {
 });
 
 B.Legend.method('repaint', function() {
+  if (this._assertRepaint(!this._items || !this._items.length))
+    return;
   B.Legend.base.repaint.apply(this, arguments);
   if (this._title)
     this._title.repaint();
@@ -3331,6 +3364,7 @@ B.ValueLegend.method('reflow', function(space) {
   if (this._title && this._transformer)
     this._title.setText(this._transformer.name());
   this._recreate();
+
   B.ValueLegend.base.reflow.apply(this, arguments);
 });
 //endregion
@@ -3474,6 +3508,8 @@ B.Slider.method('ceil', function() {
 });
 
 B.Slider.method('reflow', function(space) {
+  if (this._assertReflow(!this._ticks || this._ticks.length < 2))
+    return;
 
   var height = 0;
   for (var i = 0; i < this._ticks.length; i++) {
@@ -3500,6 +3536,8 @@ B.Slider.method('reflow', function(space) {
 });
 
 B.Slider.method('repaint', function() {
+  if (this._assertRepaint(!this._ticks || this._ticks.length < 2))
+    return;
 
   this._context.fillStyle = this._buttonHovered ? '#888888' : '#BBBBBB';
 
@@ -3680,6 +3718,15 @@ B.Chart.method('_onSliderPositionChange', function(sender, args) {
 
 B.Chart.method('_onPlotScaleChange', function(sender, args) {
   this._plot.reflow(this._plot.getOuterRect());
+
+  var labels;
+
+  if (this._plot && this._plot.getX() && (labels = this._plot.getX().getLabels()))
+    labels.reflow(labels.getOuterRect(), true);
+
+  if (this._plot && this._plot.getY() && (labels = this._plot.getY().getLabels()))
+    labels.reflow(labels.getOuterRect(), true);
+
   this._updateData(true);
   this.repaint();
 });
@@ -3793,7 +3840,7 @@ B.Chart.method('_reflowTooltip', function() {
 });
 
 B.Chart.method('reflow', function reflow(space) {
-  if (!this._context || !this._visible)
+  if (this._assertReflow())
     return;
 
   if (this._hAlign !== B.HAlign.none) {
@@ -3994,12 +4041,12 @@ B.Chart.method('reflow', function reflow(space) {
 });
 
 B.Chart.method('repaint', function repaint() {
-  B.Chart.base.repaint.apply(this, arguments);
-
-  if (!this._context || !this._visible)
+  if (this._assertRepaint())
     return;
 
   this._context.canvas.width = this._context.canvas.width;
+
+  B.Chart.base.repaint.apply(this, arguments);
 
   if (this._title)
     this._title.repaint();

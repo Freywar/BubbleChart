@@ -162,6 +162,8 @@ B.Tooltip.method('_calcPosition', function(top, left, arrowOffset, minOffset, sp
 });
 
 B.Tooltip.method('reflow', function(space) {
+  if (this._assertReflow(!this._text))
+    return;
 
   this._hAlign = B.HAlign.auto;
   this._vAlign = B.VAlign.auto;
@@ -252,7 +254,7 @@ B.Tooltip.method('reflow', function(space) {
 B.Tooltip.property('data', {value: null});
 
 B.Tooltip.method('repaint', function() {
-  if (!this._context || !this._visible)
+  if (this._assertRepaint(!this._text))
     return;
 
   var side = this._data.side,

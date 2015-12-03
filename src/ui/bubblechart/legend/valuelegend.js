@@ -49,5 +49,6 @@ B.ValueLegend.method('reflow', function(space) {
   if (this._title && this._transformer)
     this._title.setText(this._transformer.name());
   this._recreate();
+
   B.ValueLegend.base.reflow.apply(this, arguments);
 });

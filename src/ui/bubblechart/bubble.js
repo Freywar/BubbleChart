@@ -139,7 +139,7 @@ B.Bubble.method('reflow', function() {
 });
 
 B.Bubble.method('repaint', function() {
-  if (!this._context || !this._visible || !this.getR())
+  if (this._assertRepaint(!this.getR()))
     return;
 
   this._context.beginPath();

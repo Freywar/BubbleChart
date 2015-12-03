@@ -29,7 +29,7 @@ B.BubbleLabel.property('radius', {value: 8, get: true, set: true});
 B.BubbleLabel.property('color', {value: '#888888', get: true, set: true, type: B.Color});
 
 B.BubbleLabel.method('reflow', function(space) {
-  if (!this._context || !this._visible)
+  if (this._assertReflow(!this._text ||!this._radius))
     return;
 
   this._label.setContext(this._context);
@@ -68,6 +68,8 @@ B.BubbleLabel.method('reflow', function(space) {
 });
 
 B.BubbleLabel.method('repaint', function() {
+  if (this._assertRepaint(!this._text ||!this._radius))
+    return;
   B.BubbleLabel.base.repaint.apply(this, arguments);
   this._bubble.repaint();
   this._label.repaint();

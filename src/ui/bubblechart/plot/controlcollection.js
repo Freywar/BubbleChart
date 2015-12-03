@@ -195,11 +195,13 @@ B.ControlCollection.method('_realignChildren', function() {
   }
 });
 
-B.ControlCollection.method('reflow', function(space) {
+B.ControlCollection.method('reflow', function(space, realignOnly) {
   if (!this._context || !this._visible)
     return;
-  this._reflowChildren(space); //first we have to recursively calculate all items sizes in all subcollections and calculate own size depending on them
-  this._reflowSelf(space, true); //then we can apply self alignment and recursively align subcollections with self
+  if (!realignOnly) {
+    this._reflowChildren(space); //first we have to recursively calculate all items sizes in all subcollections and calculate own size depending on them
+    this._reflowSelf(space, true); //then we can apply self alignment and recursively align subcollections with self
+  }
   this._realignChildren(); //finally we can set each item's position depending on self position and transformed value
 });
 

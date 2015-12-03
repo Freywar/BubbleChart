@@ -31,6 +31,8 @@ B.Legend.property('items', {
 B.Legend.property('font', {value: null, get: true, set: true, type: B.Font});
 
 B.Legend.method('reflow', function(space) {
+  if (this._assertReflow(!this._items || !this._items.length))
+    return;
 
   for (var i = 0; i < this._items.length; i++) {
     this._items[i].setContext(this._context);
@@ -132,6 +134,8 @@ B.Legend.method('reflow', function(space) {
 });
 
 B.Legend.method('repaint', function() {
+  if (this._assertRepaint(!this._items || !this._items.length))
+    return;
   B.Legend.base.repaint.apply(this, arguments);
   if (this._title)
     this._title.repaint();

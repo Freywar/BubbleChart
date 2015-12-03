@@ -102,6 +102,15 @@ B.Chart.method('_onSliderPositionChange', function(sender, args) {
 
 B.Chart.method('_onPlotScaleChange', function(sender, args) {
   this._plot.reflow(this._plot.getOuterRect());
+
+  var labels;
+
+  if (this._plot && this._plot.getX() && (labels = this._plot.getX().getLabels()))
+    labels.reflow(labels.getOuterRect(), true);
+
+  if (this._plot && this._plot.getY() && (labels = this._plot.getY().getLabels()))
+    labels.reflow(labels.getOuterRect(), true);
+
   this._updateData(true);
   this.repaint();
 });
@@ -215,7 +224,7 @@ B.Chart.method('_reflowTooltip', function() {
 });
 
 B.Chart.method('reflow', function reflow(space) {
-  if (!this._context || !this._visible)
+  if (this._assertReflow())
     return;
 
   if (this._hAlign !== B.HAlign.none) {
@@ -416,12 +425,12 @@ B.Chart.method('reflow', function reflow(space) {
 });
 
 B.Chart.method('repaint', function repaint() {
-  B.Chart.base.repaint.apply(this, arguments);
-
-  if (!this._context || !this._visible)
+  if (this._assertRepaint())
     return;
 
   this._context.canvas.width = this._context.canvas.width;
+
+  B.Chart.base.repaint.apply(this, arguments);
 
   if (this._title)
     this._title.repaint();

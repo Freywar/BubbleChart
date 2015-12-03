@@ -44,7 +44,7 @@ B.Plot.method('_onMouseUp', function(event) {
 });
 
 B.Plot.method('reflow', function(space) {
-  if (!this._context || !this._visible)
+  if (this._assertReflow())
     return;
 
   if (this._x && this._y && this._x.getGrid() && this._y.getGrid())
@@ -75,8 +75,9 @@ B.Plot.method('reflow', function(space) {
 });
 
 B.Plot.method('repaint', function() {
-  if (!this._context || !this._visible)
+  if (this._assertRepaint())
     return;
+
   B.Plot.base.repaint.apply(this, arguments);
 
   this._clip();

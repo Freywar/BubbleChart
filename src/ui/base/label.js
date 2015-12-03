@@ -25,18 +25,8 @@ B.Label.property('font', {value: null, get: true, set: true, type: B.Font});
 B.Label.property('textAlign', {value: B.HAlign.left, get: true, set: true});
 
 B.Label.method('reflow', function reflow(space) {
-  if (!this._context || !this._visible)
+  if (this._assertReflow(!this._text))
     return;
-
-  if (!this._text) {
-    if (this._hAlign !== B.HAlign.none) {
-      this._width = 0;
-    }
-    if (this._vAlign !== B.VAlign.none) {
-      this._height = 0;
-    }
-    return;
-  }
 
   if (this._hAlign !== B.HAlign.none) {
     this._width = space.getWidth();
@@ -158,7 +148,7 @@ B.Label.method('_repaintText', function() {
 });
 
 B.Label.method('repaint', function repaint() {
-  if (!this._context || !this._visible || !this._text)
+  if (this._assertRepaint(!this._text))
     return;
 
   B.Label.base.repaint.apply(this, arguments);

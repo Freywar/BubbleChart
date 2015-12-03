@@ -13,8 +13,10 @@ B.LabelCollection.method('_hideOverlappingChildren', function(left, right) {
   for (var i = 0; i < this._items.length; i++) {
     if (this._items[i].getLeft() < left || this._items[i].getLeft() + this._items[i].getWidth() > right)
       this._items[i].setVisible(false);
-    else
+    else {
+      this._items[i].setVisible(true);
       left = this._items[i].getLeft() + this._items[i].getWidth();
+    }
   }
   for (i = 0; i < this._items.length - 1; i++) {
     if (this._subcollections && this._subcollections[i]) {
@@ -29,11 +31,14 @@ B.LabelCollection.method('_hideOverlappingChildren', function(left, right) {
 });
 
 B.LabelCollection.method('reflow', function() {
-  B.LabelCollection.base.reflow.apply(this, arguments)
+  B.LabelCollection.base.reflow.apply(this, arguments);
 
   if (this._items && this._direction === B.Direction.right) {
-    this._items[0].setLeft(Math.max(this._items[0].getLeft(), this.getInnerLeft()));
-    this._items[this._items.length - 1].setLeft(Math.min(this._items[this._items.length - 1].getLeft(), this.getInnerLeft() + this.getInnerWidth() - this._items[this._items.length - 1].getWidth()));
+    var first = this._items[0], last = this._items[this._items.length - 1];
+    if (first.getRight() > this.getInnerLeft())
+      first.setLeft(Math.max(first.getLeft(), this.getInnerLeft()));
+    if (last.getRight() < this.getInnerRight())
+      last.setRight(Math.min(last.getRight(), this.getInnerRight()));
     this._hideOverlappingChildren(this.getInnerLeft(), this.getInnerLeft() + this.getInnerWidth());
   }
 });

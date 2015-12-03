@@ -137,6 +137,8 @@ B.Slider.method('ceil', function() {
 });
 
 B.Slider.method('reflow', function(space) {
+  if (this._assertReflow(!this._ticks || this._ticks.length < 2))
+    return;
 
   var height = 0;
   for (var i = 0; i < this._ticks.length; i++) {
@@ -163,6 +165,8 @@ B.Slider.method('reflow', function(space) {
 });
 
 B.Slider.method('repaint', function() {
+  if (this._assertRepaint(!this._ticks || this._ticks.length < 2))
+    return;
 
   this._context.fillStyle = this._buttonHovered ? '#888888' : '#BBBBBB';
 

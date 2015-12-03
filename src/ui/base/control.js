@@ -144,6 +144,22 @@ B.Control.property('innerVCenter', {
   }
 });
 
+/**
+ * @method _assertReflow
+ * Check if all required properties are set, if not - sets sizes to zero according to alignment.
+ * @param {boolean} failed Some additional checks are failed.
+ * @returns {boolean} Not all required properties are set.
+ */
+B.Control.method('_assertReflow', function(failed) {
+  if (!this._context || !this._visible || failed) {
+    if (this._hAlign !== B.HAlign.none)
+      this._width = 0;
+    if (this._vAlign !== B.VAlign.none)
+      this._height = 0;
+    return true;
+  }
+  return false;
+});
 
 /**
  * @method Recalculate all internal values after any property change.
@@ -209,13 +225,23 @@ B.Control.method('_unclip', function() {
   }
 });
 
+/**
+ * @method _assertRepaint
+ * Check if all required properties are set.
+ * @param {boolean} failed Some additional checks are failed.
+ * @returns {boolean} Not all required properties are set.
+ */
+B.Control.method('_assertRepaint', function(failed) {
+  return !this._context || !this._visible || !this._width || !this._height || failed;
+});
 
 /**
  * @method Render current state on current context property.
  */
 B.Control.method('repaint', function repaint() {
-  if (!this._context || !this._visible)
+  if (this._assertRepaint())
     return;
+
   this._background.apply(this._context);
   this._context.fillRect(
     Math.round(this._left + this._margin.getLeft() + this._border.getWidth() / 2),
