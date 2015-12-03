@@ -20,29 +20,39 @@ B.ValueLegend.method('_recreate', function() {
   var min = this._transformer.getMinItem();
   var max = this._transformer.getMaxItem();
 
-  if (!Utils.Types.isNumber(min) || !Utils.Types.isNumber(max)) {
-    this._items = null;
-    return;
-  }
 
   if (this._items && this._items.length === this._count &&
     this._items[0].getText() === min.toFixed(2) && this._items[this._items.length - 1].getText() === max.toFixed(2))
     return;
 
   this._items = [];
-  for (var i = 0; i < this._count; i++) {
-    var value = min + i * (max - min) / (this._count - 1),
-      tValue = this._transformer.transform(value);
-    var options = {
-      text: value.toFixed(2)//TODO move formatting into label
-    };
-    if (Utils.Types.isString(tValue))
-      options.color = tValue;
-    else
-      options.radius = tValue * 50;//TODO get this constant from chart somehow
+  if (Utils.Types.isNumber(min) && Utils.Types.isNumber(max)) {
 
-    this._items.push(new B.BubbleLabel(options));
+    for (var i = 0; i < this._count; i++) {
+      var value = min + i * (max - min) / (this._count - 1),
+        tValue = this._transformer.transform(value);
+      var options = {
+        text: value.toFixed(2)//TODO move formatting into label
+      };
+      if (Utils.Types.isString(tValue))
+        options.color = tValue;
+      else
+        options.radius = tValue * 50;//TODO get this constant from chart somehow
+
+      this._items.push(new B.BubbleLabel(options));
+    }
+
   }
+
+  var noptions = {text: 'no data'};
+  var nValue = this._transformer.transform(null);
+  if (Utils.Types.isString(tValue))
+    noptions.color = nValue;
+  else
+    noptions.radius = nValue * 50;
+
+  this._items.push(new B.BubbleLabel(noptions));
+
 });
 
 B.ValueLegend.method('reflow', function(space) {

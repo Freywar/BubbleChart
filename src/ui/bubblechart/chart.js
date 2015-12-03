@@ -46,7 +46,7 @@ B.Chart.property('bubbles', {
   value: null, get: true, set: function(value) {
     if (this._bubbles !== value) {
       if (this._bubbles)
-        for (var i = 0; i < value.length; i++) {
+        for (var i = 0; i < this._bubbles.length; i++) {
           this._bubbles[i].hover.remove(this._onBubbleHover);
           this._bubbles[i].invalidated.remove(this._onChildInvalidated);
         }
@@ -61,7 +61,6 @@ B.Chart.property('bubbles', {
       }
     }
   }
-
 });
 
 B.Chart.property('title', {value: null, get: true, set: true, type: B.Label});
@@ -488,7 +487,7 @@ B.Chart.default = {
   xTransformer: {},
   yTransformer: {},
   cTransformer: {},
-  rTransformer: {min: 0.1},
+  rTransformer: {min: 0.2, nodata: 0.1},
 
   bubbles: [],
 

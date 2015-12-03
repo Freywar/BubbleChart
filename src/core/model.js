@@ -174,13 +174,16 @@ delegateP = null;
 /// <param name="func" type="Function"> Function. </param>
 /// <param name="context" type="Object"> Context. </param>
 /// <returns type="Delegate"> Delegate. </returns>
-function delegate(obj, name) {
+function delegate(obj_func, name_ctx) {
+  if (typeof obj_func === 'function')
+    return new Delegate(obj_func, name_ctx || window);
+
   var result = function(sender, args) {
-    result.handle.apply(result, sender, args);
+    result.handle.call(result, sender, args);
   };
-  Delegate.call(result, obj[name], obj);
+  Delegate.call(result, obj_func[name_ctx], obj_func);
   result.handle = Delegate.prototype.handle;
-  obj[name] = result;
+  obj_func[name_ctx] = result;
 };
 
 /**

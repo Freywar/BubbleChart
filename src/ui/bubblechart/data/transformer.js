@@ -47,7 +47,7 @@ B.Transformer.property('maxItem', {
  * @method Linear interpolation.
  */
 B.Transformer.method('_interpolate', function _interpolate(minV, v, maxV, minR, maxR) {
-  var dataRange = maxV - minV;
+  var dataRange = (maxV - minV) || 1;
   var dataOffset = v - minV;
   var resultRange = maxR - minR;
   return minR + dataOffset * resultRange / dataRange;

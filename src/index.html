@@ -61,7 +61,7 @@
             };
             options.xTransformer = visuals.indexOf('x') !== -1 ? {path: ['x']} : null;
             options.yTransformer = visuals.indexOf('y') !== -1 ? {path: ['y']} : null;
-            options.rTransformer = visuals.indexOf('r') !== -1 ? {min: 0.1, path: ['r']} : null;
+            options.rTransformer = visuals.indexOf('r') !== -1 ? {min: 0.2, nodata: 0.1, path: ['r']} : null;
             options.cTransformer = visuals.indexOf('c') !== -1 ? {path: ['c']} : null;
 
             return options;
