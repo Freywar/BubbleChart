@@ -29,6 +29,7 @@ B.Bubble.method('_onDblClick', function(args) {
 });
 
 B.Bubble.method('_onAnimationFrame', function(args) {
+  //TODO make color animatable too
   var changed = !!(this.getLeft(true).animate() + this.getTop(true).animate() + this.getWidth(true).animate() + this.getHeight(true).animate());
 
   var state = this._state;
@@ -36,6 +37,8 @@ B.Bubble.method('_onAnimationFrame', function(args) {
     this._state = B.Bubble.States.appearing;
   if (!changed && this._state === B.Bubble.States.appearing)
     this._state = B.Bubble.States.normal;
+  if (!changed && this._state === B.Bubble.States.disappearing)
+    this._state = B.Bubble.States.disappeared;
   if (changed)
     this.invalidated.invoke(this);
   if (state !== this._state)

@@ -140,8 +140,6 @@ MEvent.prototype.add = function(handler) {
 MEvent.prototype.remove = function(handler) {
   if (this._handlers && ~this._handlers.indexOf(handler))
     this._handlers.splice(this._handlers.indexOf(handler), 1);
-  if (!this._handlers.length)
-    this._handlers = null;
 };
 MEvent.prototype.clear = function(handler) {
   this._handlers = null;

@@ -39,6 +39,6 @@ B.LabelCollection.method('reflow', function() {
       first.setLeft(Math.max(first.getLeft(), this.getInnerLeft()));
     if (last.getRight() < this.getInnerRight())
       last.setRight(Math.min(last.getRight(), this.getInnerRight()));
-    this._hideOverlappingChildren(this.getInnerLeft(), this.getInnerLeft() + this.getInnerWidth());
+    this._hideOverlappingChildren(-Infinity, Infinity);
   }
 });

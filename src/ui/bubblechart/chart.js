@@ -2,6 +2,7 @@ B.Chart = cls('B.Chart', B.Control, function(options) {
   delegate(this, '_onSliderPositionChange');
   delegate(this, '_onPlotScaleChange');
   delegate(this, '_onBubbleHover');
+  delegate(this, '_onBubbleStateChange');
   delegate(this, '_onChildInvalidated');
   B.Chart.base.constructor.apply(this, arguments);
 });
@@ -47,20 +48,52 @@ B.Chart.property('bubbles', {
     this._hoveredBubble = null;
 
     if (this._bubbles !== value) {
-      if (this._bubbles)
-        for (var i = 0; i < this._bubbles.length; i++) {
-          this._bubbles[i].hover.remove(this._onBubbleHover);
-          this._bubbles[i].invalidated.remove(this._onChildInvalidated);
-        }
+      var i;
 
-      this._bubbles = [];
+
       if (value) {
-        for (var i = 0; i < value.length; i++) {
-          this._bubbles.push(new B.Bubble(value[i]));
-          this._bubbles[i].hover.add(this._onBubbleHover);
-          this._bubbles[i].invalidated.add(this._onChildInvalidated);
+        for (i = 0; i < value.length; i++) {
+          var newBubble = value[i],
+            oldBubble = null,
+            id = newBubble.path[0];
+
+          if (this._bubbles && id) {
+            for (var j = 0; j < this._bubbles.length && !oldBubble; j++)
+              if (this._bubbles[j].getPath()[0] === id)
+                oldBubble = this._bubbles[j];
+          }
+
+          if (oldBubble) {
+            oldBubble.update(newBubble);
+            value[i] = newBubble = oldBubble;
+          }
+          else {
+            value[i] = newBubble = new B.Bubble(newBubble);
+            newBubble.hover.add(this._onBubbleHover);
+            newBubble.invalidated.add(this._onChildInvalidated);
+            newBubble.stateChange.add(this._onBubbleStateChange);
+          }
         }
       }
+
+      var queue = [];
+      if (this._bubbles) {
+        for (i = 0; i < this._bubbles.length; i++) {
+          if (value.indexOf(this._bubbles[i]) === -1) {
+            queue.push(this._bubbles[i]);
+            this._bubbles[i].setState(B.Bubble.States.disappearing);
+          }
+          else {
+            queue.unshift(i, 0);
+            value.splice.apply(value, queue);
+            queue = [];
+          }
+        }
+        if (queue.length)
+          value = value.concat(queue);
+      }
+
+      this._bubbles = value;
     }
   }
 });
@@ -124,11 +157,24 @@ B.Chart.method('_onBubbleHover', function(sender, args) {
   }
 });
 
+B.Chart.method('_onBubbleStateChange', function(sender, args) {
+  if (sender.getState() === B.Bubble.States.disappeared) {
+    var i = this._bubbles.indexOf(sender);
+    this._bubbles[i].hover.remove(this._onBubbleHover);
+    this._bubbles[i].invalidated.remove(this._onChildInvalidated);
+    this._bubbles[i].stateChange.remove(this._onBubbleStateChange);
+    this._bubbles.splice(i, 1);
+  }
+});
+
 B.Chart.method('_onChildInvalidated', function(sender, args) {
   this.invalidate(false, true);
 });
 
 B.Chart.method('_handle', function(args) {
+  if (this._invalidateArgs)
+    this._invalidate();
+
   if (this._bubbles)
     for (var i = this._bubbles.length - 1; i >= 0; i--)
       this._bubbles[i]._handle(args);
@@ -145,9 +191,9 @@ B.Chart.method('_updateData', function(isAnimation) {
   if (!this._plot)
     return;
 
-  var bubbles = this._bubbles;
-  if (!bubbles)
-    return;
+  var bubbles = this._bubbles.filter(function(bubble) {
+    return bubble.getState() !== B.Bubble.States.disappearing
+  });
 
   var sliderF = this._slider.floor();
   var sliderO = this._slider.offset();
@@ -177,6 +223,17 @@ B.Chart.method('_updateData', function(isAnimation) {
     else
       bubble.setColor(this._palette[i % this._palette.length]);
 
+    if (isAnimation)
+      bubble.skip();
+  }
+
+  bubbles = this._bubbles.filter(function(bubble) {
+    return bubble.getState() === B.Bubble.States.disappearing
+  });
+
+  for (i = 0; i < bubbles.length; i++) {
+    bubbles[i].setContext(this._context);
+    bubbles[i].setR(0);
     if (isAnimation)
       bubble.skip();
   }
@@ -300,7 +357,9 @@ B.Chart.method('reflow', function reflow(space) {
   }
 
   if (!(this._cTransformer && this._cTransformer.getPath()) && this._bubblesLegend && this._plot && this._bubbles) {
-    var bubbles = this._bubbles, items = [];
+    var bubbles = this._bubbles.filter(function(bubble) {
+      return bubble.getState() !== B.Bubble.States.disappearing
+    }), items = [];
     for (i = 0; i < bubbles.length; i++)
       items.push({
         text: this._data.name([''].concat(bubbles[i].getPath())),
