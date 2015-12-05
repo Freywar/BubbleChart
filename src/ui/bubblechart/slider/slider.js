@@ -13,19 +13,34 @@ B.Slider.property('_sliderDragged', {value: false});
 B.Slider.property('_sliderAnimated', {value: false});
 B.Slider.property('_sliderAnimatedPrevTime', {value: null});
 
+B.Slider.method('_startPadding', function() {
+  if (this._ticks && this._ticks[0])
+    return Math.max(9, this._ticks[0].getWidth() / 2);
+  return 9;
+});
+
+B.Slider.method('_endPadding', function() {
+  if (this._ticks && this._ticks[this._ticks.length - 1])
+    return Math.max(9, this._ticks[this._ticks.length - 1].getWidth() / 2);
+  return 9;
+});
+
 B.Slider.method('_onMouseDown', function(args) {
-  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;
-  var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
+  var start = this.getInnerLeft() + 32 + this._padding.getLeft();
+  var length = this.getInnerLeft() + this.getInnerWidth() - start;
   var st = this.getInnerTop() + 16.5;
   this._sliderDragged = args.x >= start && args.x <= start + length && args.y >= st - 9 && args.y <= st + 9;
-  if (this._sliderDragged)
+  if (this._sliderDragged) {
+    this._capture = true;
+    this._sliderAnimated = false;
     this._onMouseMove(args);
+  }
 });
 
 B.Slider.method('_onMouseMove', function(args) {
 
-  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;
-  var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
+  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + this._startPadding();
+  var length = this.getInnerLeft() + this.getInnerWidth() - start - this._endPadding();
 
   if (!this._sliderDragged) {
 
@@ -59,8 +74,7 @@ B.Slider.method('_onMouseMove', function(args) {
 });
 
 B.Slider.method('_onMouseUp', function(args) {
-  this._sliderDragged = false;
-  if (this._buttonHovered) {
+  if (this._buttonHovered && !this._sliderDragged) {
     this._sliderAnimated = !this._sliderAnimated;
     if (this._sliderAnimated && this._position === 1)
       this._position = 0;
@@ -70,6 +84,8 @@ B.Slider.method('_onMouseUp', function(args) {
       animation: this._sliderAnimated
     });
   }
+  this._sliderDragged = false;
+  this._capture = this._buttonHovered || this._sliderHovered;
 });
 
 B.Slider.method('_onAnimationFrame', function(args) {
@@ -155,8 +171,8 @@ B.Slider.method('reflow', function(space) {
 
   B.Slider.base.reflow.apply(this, arguments);
 
-  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;//TODO extract magic numbers to properties, maybe constant
-  var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
+  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + this._startPadding();//TODO extract magic numbers to properties, maybe constant
+  var length = this.getInnerLeft() + this.getInnerWidth() - start - this._endPadding();
   for (i = 0; i < this._ticks.length; i++) {
     this._ticks[i].setLeft(start + i * length / (this._ticks.length - 1) - this._ticks[i].getWidth() / 2);
     this._ticks[i].setTop(this.getInnerTop() + 16 + 9);
@@ -200,8 +216,8 @@ B.Slider.method('repaint', function() {
 
   this._context.fillRect(start, this.getInnerTop() + 16 - 2, length, 5);
 
-  start += 9;
-  length -= 18;
+  start += this._startPadding();
+  length -= this._startPadding() + this._endPadding();
 
   for (var i = 0; i < this._ticks.length; i++) {
     this._context.fillStyle = '#BBBBBB';

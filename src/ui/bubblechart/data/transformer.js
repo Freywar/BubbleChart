@@ -31,7 +31,11 @@ B.Transformer.property('nodata', {value: 0.5, get: true, set: true});
  */
 B.Transformer.property('minItem', {
   get: function() {
-    return this._data && this._data.getNumeric() ? this._data.min(this._path) : -1
+    if (!this._data || !this._data.getNumeric())
+      return -1;
+    var min = this._data.min(this._path);
+    var max = this._data.max(this._path);
+    return min === max ? min - 1 : min;
   }
 });
 /**
@@ -39,7 +43,11 @@ B.Transformer.property('minItem', {
  */
 B.Transformer.property('maxItem', {
   get: function() {
-    return this._data && this._data.getNumeric() ? this._data.max(this._path) : 1
+    if (!this._data || !this._data.getNumeric())
+      return -1;
+    var min = this._data.min(this._path);
+    var max = this._data.max(this._path);
+    return min === max ? max + 1 : max;
   }
 });
 
@@ -110,7 +118,6 @@ B.Transformer.method('name', function(path) {
     path = this._path.concat(path || []);
   return this._data && this._data.name(path);
 });
-
 
 
 B.ColorTransformer = cls('B.ColorTransformer', B.Transformer);

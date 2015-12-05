@@ -44,6 +44,8 @@ B.Chart.property('cTransformer', {value: null, get: true, set: true, type: B.Col
  */
 B.Chart.property('bubbles', {
   value: null, get: true, set: function(value) {
+    this._hoveredBubble = null;
+
     if (this._bubbles !== value) {
       if (this._bubbles)
         for (var i = 0; i < this._bubbles.length; i++) {
@@ -196,16 +198,16 @@ B.Chart.method('_reflowTooltip', function() {
 
     var lines = [name + ', ' + (nameF === nameC ? nameF : nameF + ' - ' + nameC)], value;
 
-    if (this._xTransformer)
+    if (this._xTransformer && this._xTransformer.name())
       lines.push(this._xTransformer.name() + ': ' + ((value = this._xTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
 
-    if (this._yTransformer)
+    if (this._yTransformer && this._yTransformer.name())
       lines.push(this._yTransformer.name() + ': ' + ((value = this._yTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
 
-    if (this._rTransformer)
+    if (this._rTransformer && this._rTransformer.name())
       lines.push(this._rTransformer.name() + ': ' + ((value = this._rTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
 
-    if (this._cTransformer && this._cTransformer.getPath())
+    if (this._cTransformer && this._cTransformer.name())
       lines.push(this._cTransformer.name() + ': ' + ((value = this._cTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
 
     this._tooltip.setText(Utils.Array.unique(lines).join('\n'));
@@ -328,7 +330,7 @@ B.Chart.method('reflow', function reflow(space) {
     title.setContext(this._context);
     title.setHAlign(B.HAlign.center);
     title.setVAlign(B.VAlign.bottom);
-    title.setText(this._xTransformer.name() || 'X')
+    title.setText(this._xTransformer.name())
     title.reflow(innerSpace);
     innerSpace.setHeight(title.getTop() - innerSpace.getTop());
   }
@@ -338,7 +340,7 @@ B.Chart.method('reflow', function reflow(space) {
     title.setHAlign(B.HAlign.left);
     title.setVAlign(B.VAlign.center);
     title.setDirection(B.Direction.up);
-    title.setText(this._yTransformer.name() || 'Y');
+    title.setText(this._yTransformer.name());
     title.reflow(innerSpace);
     innerSpace.setLeft(title.getLeft() + title.getWidth());
     innerSpace.setWidth(innerSpace.getWidth() - title.getWidth());
