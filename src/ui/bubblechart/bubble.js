@@ -17,11 +17,11 @@ B.Bubble.method('_check', function(x, y) {
 B.Bubble.method('_onMouseMove', function(args) {
   var isInside = this._check(args.x, args.y);
   var changed = (this._hovered !== (this._hovered = this._capture = (isInside && !args.cancel)));
-  args.cancel = args.cancel || isInside;
   if (changed)
     this.hover.invoke(this, Utils.extend({
-      hover: isInside
-    }, args))
+      hover: (isInside && !args.cancel)
+    }, args));
+  args.cancel = args.cancel || isInside;
 });
 
 B.Bubble.method('_onDblClick', function(args) {

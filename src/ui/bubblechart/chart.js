@@ -150,7 +150,7 @@ B.Chart.method('_onPlotScaleChange', function(sender, args) {
 });
 
 B.Chart.method('_onBubbleHover', function(sender, args) {
-  if (sender !== this._hoveredBubble || !args.hover) {
+  if ((sender !== this._hoveredBubble || !args.hover) && !args.cancel) {
     this._hoveredBubble = args.hover ? sender : null;
     this._reflowTooltip();
     this.invalidate(false, true);
