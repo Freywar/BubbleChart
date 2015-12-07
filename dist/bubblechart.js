@@ -142,8 +142,6 @@ MEvent.prototype.add = function(handler) {
 MEvent.prototype.remove = function(handler) {
   if (this._handlers && ~this._handlers.indexOf(handler))
     this._handlers.splice(this._handlers.indexOf(handler), 1);
-  if (!this._handlers.length)
-    this._handlers = null;
 };
 MEvent.prototype.clear = function(handler) {
   this._handlers = null;
@@ -1916,11 +1914,11 @@ B.Bubble.method('_check', function(x, y) {
 B.Bubble.method('_onMouseMove', function(args) {
   var isInside = this._check(args.x, args.y);
   var changed = (this._hovered !== (this._hovered = this._capture = (isInside && !args.cancel)));
-  args.cancel = args.cancel || isInside;
   if (changed)
     this.hover.invoke(this, Utils.extend({
-      hover: isInside
-    }, args))
+      hover: (isInside && !args.cancel)
+    }, args));
+  args.cancel = args.cancel || isInside;
 });
 
 B.Bubble.method('_onDblClick', function(args) {
@@ -1928,6 +1926,7 @@ B.Bubble.method('_onDblClick', function(args) {
 });
 
 B.Bubble.method('_onAnimationFrame', function(args) {
+  //TODO make color animatable too
   var changed = !!(this.getLeft(true).animate() + this.getTop(true).animate() + this.getWidth(true).animate() + this.getHeight(true).animate());
 
   var state = this._state;
@@ -1935,6 +1934,8 @@ B.Bubble.method('_onAnimationFrame', function(args) {
     this._state = B.Bubble.States.appearing;
   if (!changed && this._state === B.Bubble.States.appearing)
     this._state = B.Bubble.States.normal;
+  if (!changed && this._state === B.Bubble.States.disappearing)
+    this._state = B.Bubble.States.disappeared;
   if (changed)
     this.invalidated.invoke(this);
   if (state !== this._state)
@@ -2255,7 +2256,11 @@ B.Transformer.property('nodata', {value: 0.5, get: true, set: true});
  */
 B.Transformer.property('minItem', {
   get: function() {
-    return this._data && this._data.getNumeric() ? this._data.min(this._path) : -1
+    if (!this._data || !this._data.getNumeric())
+      return -1;
+    var min = this._data.min(this._path);
+    var max = this._data.max(this._path);
+    return min === max ? min - 1 : min;
   }
 });
 /**
@@ -2263,7 +2268,11 @@ B.Transformer.property('minItem', {
  */
 B.Transformer.property('maxItem', {
   get: function() {
-    return this._data && this._data.getNumeric() ? this._data.max(this._path) : 1
+    if (!this._data || !this._data.getNumeric())
+      return -1;
+    var min = this._data.min(this._path);
+    var max = this._data.max(this._path);
+    return min === max ? max + 1 : max;
   }
 });
 
@@ -2334,7 +2343,6 @@ B.Transformer.method('name', function(path) {
     path = this._path.concat(path || []);
   return this._data && this._data.name(path);
 });
-
 
 
 B.ColorTransformer = cls('B.ColorTransformer', B.Transformer);
@@ -2954,7 +2962,7 @@ B.LabelCollection.method('reflow', function() {
       first.setLeft(Math.max(first.getLeft(), this.getInnerLeft()));
     if (last.getRight() < this.getInnerRight())
       last.setRight(Math.min(last.getRight(), this.getInnerRight()));
-    this._hideOverlappingChildren(this.getInnerLeft(), this.getInnerLeft() + this.getInnerWidth());
+    this._hideOverlappingChildren(-Infinity, Infinity);
   }
 });
 //endregion
@@ -3397,19 +3405,34 @@ B.Slider.property('_sliderDragged', {value: false});
 B.Slider.property('_sliderAnimated', {value: false});
 B.Slider.property('_sliderAnimatedPrevTime', {value: null});
 
+B.Slider.method('_startPadding', function() {
+  if (this._ticks && this._ticks[0])
+    return Math.max(9, this._ticks[0].getWidth() / 2);
+  return 9;
+});
+
+B.Slider.method('_endPadding', function() {
+  if (this._ticks && this._ticks[this._ticks.length - 1])
+    return Math.max(9, this._ticks[this._ticks.length - 1].getWidth() / 2);
+  return 9;
+});
+
 B.Slider.method('_onMouseDown', function(args) {
-  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;
-  var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
+  var start = this.getInnerLeft() + 32 + this._padding.getLeft();
+  var length = this.getInnerLeft() + this.getInnerWidth() - start;
   var st = this.getInnerTop() + 16.5;
   this._sliderDragged = args.x >= start && args.x <= start + length && args.y >= st - 9 && args.y <= st + 9;
-  if (this._sliderDragged)
+  if (this._sliderDragged) {
+    this._capture = true;
+    this._sliderAnimated = false;
     this._onMouseMove(args);
+  }
 });
 
 B.Slider.method('_onMouseMove', function(args) {
 
-  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;
-  var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
+  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + this._startPadding();
+  var length = this.getInnerLeft() + this.getInnerWidth() - start - this._endPadding();
 
   if (!this._sliderDragged) {
 
@@ -3443,8 +3466,7 @@ B.Slider.method('_onMouseMove', function(args) {
 });
 
 B.Slider.method('_onMouseUp', function(args) {
-  this._sliderDragged = false;
-  if (this._buttonHovered) {
+  if (this._buttonHovered && !this._sliderDragged) {
     this._sliderAnimated = !this._sliderAnimated;
     if (this._sliderAnimated && this._position === 1)
       this._position = 0;
@@ -3454,6 +3476,8 @@ B.Slider.method('_onMouseUp', function(args) {
       animation: this._sliderAnimated
     });
   }
+  this._sliderDragged = false;
+  this._capture = this._buttonHovered || this._sliderHovered;
 });
 
 B.Slider.method('_onAnimationFrame', function(args) {
@@ -3539,8 +3563,8 @@ B.Slider.method('reflow', function(space) {
 
   B.Slider.base.reflow.apply(this, arguments);
 
-  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + 9;//TODO extract magic numbers to properties, maybe constant
-  var length = this.getInnerLeft() + this.getInnerWidth() - start - 18;
+  var start = this.getInnerLeft() + 32 + this._padding.getLeft() + this._startPadding();//TODO extract magic numbers to properties, maybe constant
+  var length = this.getInnerLeft() + this.getInnerWidth() - start - this._endPadding();
   for (i = 0; i < this._ticks.length; i++) {
     this._ticks[i].setLeft(start + i * length / (this._ticks.length - 1) - this._ticks[i].getWidth() / 2);
     this._ticks[i].setTop(this.getInnerTop() + 16 + 9);
@@ -3584,8 +3608,8 @@ B.Slider.method('repaint', function() {
 
   this._context.fillRect(start, this.getInnerTop() + 16 - 2, length, 5);
 
-  start += 9;
-  length -= 18;
+  start += this._startPadding();
+  length -= this._startPadding() + this._endPadding();
 
   for (var i = 0; i < this._ticks.length; i++) {
     this._context.fillStyle = '#BBBBBB';
@@ -3631,6 +3655,7 @@ B.Chart = cls('B.Chart', B.Control, function(options) {
   delegate(this, '_onSliderPositionChange');
   delegate(this, '_onPlotScaleChange');
   delegate(this, '_onBubbleHover');
+  delegate(this, '_onBubbleStateChange');
   delegate(this, '_onChildInvalidated');
   B.Chart.base.constructor.apply(this, arguments);
 });
@@ -3673,21 +3698,55 @@ B.Chart.property('cTransformer', {value: null, get: true, set: true, type: B.Col
  */
 B.Chart.property('bubbles', {
   value: null, get: true, set: function(value) {
-    if (this._bubbles !== value) {
-      if (this._bubbles)
-        for (var i = 0; i < this._bubbles.length; i++) {
-          this._bubbles[i].hover.remove(this._onBubbleHover);
-          this._bubbles[i].invalidated.remove(this._onChildInvalidated);
-        }
+    this._hoveredBubble = null;
 
-      this._bubbles = [];
+    if (this._bubbles !== value) {
+      var i;
+
+
       if (value) {
-        for (var i = 0; i < value.length; i++) {
-          this._bubbles.push(new B.Bubble(value[i]));
-          this._bubbles[i].hover.add(this._onBubbleHover);
-          this._bubbles[i].invalidated.add(this._onChildInvalidated);
+        for (i = 0; i < value.length; i++) {
+          var newBubble = value[i],
+            oldBubble = null,
+            id = newBubble.path[0];
+
+          if (this._bubbles && id) {
+            for (var j = 0; j < this._bubbles.length && !oldBubble; j++)
+              if (this._bubbles[j].getPath()[0] === id)
+                oldBubble = this._bubbles[j];
+          }
+
+          if (oldBubble) {
+            oldBubble.update(newBubble);
+            value[i] = newBubble = oldBubble;
+          }
+          else {
+            value[i] = newBubble = new B.Bubble(newBubble);
+            newBubble.hover.add(this._onBubbleHover);
+            newBubble.invalidated.add(this._onChildInvalidated);
+            newBubble.stateChange.add(this._onBubbleStateChange);
+          }
         }
       }
+
+      var queue = [];
+      if (this._bubbles) {
+        for (i = 0; i < this._bubbles.length; i++) {
+          if (value.indexOf(this._bubbles[i]) === -1) {
+            queue.push(this._bubbles[i]);
+            this._bubbles[i].setState(B.Bubble.States.disappearing);
+          }
+          else {
+            queue.unshift(i, 0);
+            value.splice.apply(value, queue);
+            queue = [];
+          }
+        }
+        if (queue.length)
+          value = value.concat(queue);
+      }
+
+      this._bubbles = value;
     }
   }
 });
@@ -3744,10 +3803,20 @@ B.Chart.method('_onPlotScaleChange', function(sender, args) {
 });
 
 B.Chart.method('_onBubbleHover', function(sender, args) {
-  if (sender !== this._hoveredBubble || !args.hover) {
+  if ((sender !== this._hoveredBubble || !args.hover) && !args.cancel) {
     this._hoveredBubble = args.hover ? sender : null;
     this._reflowTooltip();
     this.invalidate(false, true);
+  }
+});
+
+B.Chart.method('_onBubbleStateChange', function(sender, args) {
+  if (sender.getState() === B.Bubble.States.disappeared) {
+    var i = this._bubbles.indexOf(sender);
+    this._bubbles[i].hover.remove(this._onBubbleHover);
+    this._bubbles[i].invalidated.remove(this._onChildInvalidated);
+    this._bubbles[i].stateChange.remove(this._onBubbleStateChange);
+    this._bubbles.splice(i, 1);
   }
 });
 
@@ -3756,6 +3825,9 @@ B.Chart.method('_onChildInvalidated', function(sender, args) {
 });
 
 B.Chart.method('_handle', function(args) {
+  if (this._invalidateArgs)
+    this._invalidate();
+
   if (this._bubbles)
     for (var i = this._bubbles.length - 1; i >= 0; i--)
       this._bubbles[i]._handle(args);
@@ -3772,9 +3844,9 @@ B.Chart.method('_updateData', function(isAnimation) {
   if (!this._plot)
     return;
 
-  var bubbles = this._bubbles;
-  if (!bubbles)
-    return;
+  var bubbles = this._bubbles.filter(function(bubble) {
+    return bubble.getState() !== B.Bubble.States.disappearing
+  });
 
   var sliderF = this._slider.floor();
   var sliderO = this._slider.offset();
@@ -3807,6 +3879,17 @@ B.Chart.method('_updateData', function(isAnimation) {
     if (isAnimation)
       bubble.skip();
   }
+
+  bubbles = this._bubbles.filter(function(bubble) {
+    return bubble.getState() === B.Bubble.States.disappearing
+  });
+
+  for (i = 0; i < bubbles.length; i++) {
+    bubbles[i].setContext(this._context);
+    bubbles[i].setR(0);
+    if (isAnimation)
+      bubble.skip();
+  }
 });
 
 B.Chart.property('_hoveredBubble');
@@ -3825,16 +3908,16 @@ B.Chart.method('_reflowTooltip', function() {
 
     var lines = [name + ', ' + (nameF === nameC ? nameF : nameF + ' - ' + nameC)], value;
 
-    if (this._xTransformer)
+    if (this._xTransformer && this._xTransformer.name())
       lines.push(this._xTransformer.name() + ': ' + ((value = this._xTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
 
-    if (this._yTransformer)
+    if (this._yTransformer && this._yTransformer.name())
       lines.push(this._yTransformer.name() + ': ' + ((value = this._yTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
 
-    if (this._rTransformer)
+    if (this._rTransformer && this._rTransformer.name())
       lines.push(this._rTransformer.name() + ': ' + ((value = this._rTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
 
-    if (this._cTransformer && this._cTransformer.getPath())
+    if (this._cTransformer && this._cTransformer.name())
       lines.push(this._cTransformer.name() + ': ' + ((value = this._cTransformer.item(pathF, pathC, sliderO)) !== null ? value.toFixed(2) : 'no data'));
 
     this._tooltip.setText(Utils.Array.unique(lines).join('\n'));
@@ -3927,7 +4010,9 @@ B.Chart.method('reflow', function reflow(space) {
   }
 
   if (!(this._cTransformer && this._cTransformer.getPath()) && this._bubblesLegend && this._plot && this._bubbles) {
-    var bubbles = this._bubbles, items = [];
+    var bubbles = this._bubbles.filter(function(bubble) {
+      return bubble.getState() !== B.Bubble.States.disappearing
+    }), items = [];
     for (i = 0; i < bubbles.length; i++)
       items.push({
         text: this._data.name([''].concat(bubbles[i].getPath())),
@@ -3957,7 +4042,7 @@ B.Chart.method('reflow', function reflow(space) {
     title.setContext(this._context);
     title.setHAlign(B.HAlign.center);
     title.setVAlign(B.VAlign.bottom);
-    title.setText(this._xTransformer.name() || 'X')
+    title.setText(this._xTransformer.name())
     title.reflow(innerSpace);
     innerSpace.setHeight(title.getTop() - innerSpace.getTop());
   }
@@ -3967,7 +4052,7 @@ B.Chart.method('reflow', function reflow(space) {
     title.setHAlign(B.HAlign.left);
     title.setVAlign(B.VAlign.center);
     title.setDirection(B.Direction.up);
-    title.setText(this._yTransformer.name() || 'Y');
+    title.setText(this._yTransformer.name());
     title.reflow(innerSpace);
     innerSpace.setLeft(title.getLeft() + title.getWidth());
     innerSpace.setWidth(innerSpace.getWidth() - title.getWidth());
